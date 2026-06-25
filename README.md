@@ -322,21 +322,14 @@ Create a **Username with password** credential:
 
 | Parameter | Description |
 |-----------|-------------|
-| `TEST_SELECTION_MODE` | `ALL_TESTS` \| `SMOKE` \| `CHECKBOX_SELECTION` |
-| `TEST_SEARCH_TIME` … `TEST_LOGIN` | Individual test toggles (checkbox mode) |
 | `DEFAULT_EMAIL` | Primary report recipient (default: `usman.arshad@rolustech.com`) |
 | `ADDITIONAL_EMAILS` | Comma-separated extra recipients |
 | `DAKOTA_CREDENTIALS_ID` | Jenkins credential ID for portal login |
 | `RUN_ALLURE` | Publish Allure report in Jenkins |
 | `SEND_EMAIL` | Send HTML summary email with attachments |
-| `FRESH_REPORT_OUTPUT` | Clear prior Allure history artifacts before run (Excel is always recreated) |
 | `ENABLE_INFRA_RETRY` / `INFRA_RETRY_COUNT` | Retry flaky Selenium failures |
 
-**Selection modes**
-
-- **ALL_TESTS** — all five performance benchmarks
-- **SMOKE** — `test_dakota_search_time` + `test_dakota_login`
-- **CHECKBOX_SELECTION** — only tests with `TEST_*` checkboxes enabled
+Each build **always runs the full test suite** (5 performance tests + login) and **always generates fresh** Excel, Allure, and JUnit artifacts.
 
 ### Allure in Jenkins
 

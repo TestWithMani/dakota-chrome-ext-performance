@@ -9,16 +9,6 @@ pipeline {
     }
 
     parameters {
-        choice(
-            name: 'TEST_SELECTION_MODE',
-            choices: ['ALL_TESTS', 'SMOKE', 'CHECKBOX_SELECTION'],
-            description: 'ALL_TESTS runs full performance suite, SMOKE runs search + login, CHECKBOX_SELECTION runs selected TEST_* checkboxes.'
-        )
-        booleanParam(
-            name: 'FRESH_REPORT_OUTPUT',
-            defaultValue: false,
-            description: 'Clear old Allure history artifacts before this run. Excel is always recreated fresh each build.'
-        )
         string(
             name: 'ADDITIONAL_EMAILS',
             defaultValue: '',
@@ -54,12 +44,6 @@ pipeline {
             defaultValue: true,
             description: 'Send HTML email summary after pipeline completion.'
         )
-        booleanParam(name: 'TEST_SEARCH_TIME', defaultValue: false, description: 'Run company search timing test.')
-        booleanParam(name: 'TEST_DETAIL_LOADING', defaultValue: false, description: 'Run company detail load timing test.')
-        booleanParam(name: 'TEST_CONTACTS_LOADING', defaultValue: false, description: 'Run company contacts tab load timing test.')
-        booleanParam(name: 'TEST_TAB_LOADING', defaultValue: false, description: 'Run company-type profile tab load timing test.')
-        booleanParam(name: 'TEST_LOAD_MORE', defaultValue: false, description: 'Run search Load More timing test.')
-        booleanParam(name: 'TEST_LOGIN', defaultValue: false, description: 'Run portal + extension login test.')
     }
 
     environment {
@@ -84,7 +68,7 @@ pipeline {
                         error('Checkout failed — requirements.txt not found in repository.')
                     }
                     def shortCommit = env.GIT_COMMIT ? env.GIT_COMMIT.take(7) : 'N/A'
-                    currentBuild.description = "Dakota Chrome Extension | ${params.TEST_SELECTION_MODE}"
+                    currentBuild.description = 'Dakota Chrome Extension | Full Test Suite'
                     echo "Repo: https://github.com/TestWithMani/dakota-chrome-ext-performance"
                     echo "Branch: ${env.BRANCH_NAME ?: 'main'} | Commit: ${shortCommit}"
                 }
@@ -159,24 +143,17 @@ pipeline {
         stage('Prepare Report Directories') {
             steps {
                 script {
-                    def effectiveCfg = getEffectiveRunConfig()
-                    if (effectiveCfg.freshReportOutput) {
-                        echo 'Fresh report mode enabled: clearing Allure history artifacts.'
-                        runShell(
-                            'rm -rf allure-report || true',
-                            'if exist allure-report rmdir /s /q allure-report'
-                        )
-                    }
-                    echo 'Clearing previous Excel and report output directories for a fresh run.'
+                    echo 'Clearing previous report artifacts for a fresh run.'
                     runShell(
                         '''
-                            rm -rf test-results allure-results reports || true
+                            rm -rf test-results allure-results reports allure-report || true
                             mkdir -p test-results allure-results reports
                         ''',
                         '''
                             if exist test-results rmdir /s /q test-results
                             if exist allure-results rmdir /s /q allure-results
                             if exist reports rmdir /s /q reports
+                            if exist allure-report rmdir /s /q allure-report
                             mkdir test-results
                             mkdir allure-results
                             mkdir reports
@@ -190,16 +167,9 @@ pipeline {
             steps {
                 script {
                     def effectiveCfg = getEffectiveRunConfig()
-                    validateRuntimeParameters(
-                        effectiveCfg.testSelectionMode as String,
-                        effectiveCfg.infraRetryCount as String
-                    )
-                    def selectedTestFiles = resolveSelectedTestFiles(
-                        effectiveCfg.testSelectionMode as String,
-                        params
-                    )
-                    echo "Selection mode -> ${effectiveCfg.testSelectionMode}"
-                    echo "Selected ${selectedTestFiles.size()} test files."
+                    validateRuntimeParameters(effectiveCfg.infraRetryCount as String)
+                    def selectedTestFiles = getAllTestCaseFiles()
+                    echo "Running full suite: ${selectedTestFiles.size()} test files."
                     runPytest('--version')
                     runPytest("--collect-only -q ${selectedTestFiles.join(' ')}")
                 }
@@ -210,10 +180,7 @@ pipeline {
             steps {
                 script {
                     def effectiveCfg = getEffectiveRunConfig()
-                    def selectedTestFiles = resolveSelectedTestFiles(
-                        effectiveCfg.testSelectionMode as String,
-                        params
-                    )
+                    def selectedTestFiles = getAllTestCaseFiles()
                     def runCmd = buildPytestCommand(
                         selectedTestFiles,
                         effectiveCfg.runAllure as boolean,
@@ -302,8 +269,6 @@ pipeline {
 
 def getEffectiveRunConfig() {
     return [
-        testSelectionMode: params.TEST_SELECTION_MODE as String,
-        freshReportOutput: params.FRESH_REPORT_OUTPUT as boolean,
         additionalEmails : params.ADDITIONAL_EMAILS as String,
         defaultEmail     : params.DEFAULT_EMAIL as String,
         enableInfraRetry : params.ENABLE_INFRA_RETRY as boolean,
@@ -383,78 +348,21 @@ def buildPytestCommand(
     return shellQuotePytestArgs(parts)
 }
 
-def resolveSelectedTestFiles(String selectionMode, def paramsObj) {
-    def allFiles = getAvailableTestCaseFiles()
-    def smokeFiles = getSmokeTestCaseFiles()
-    def mode = (selectionMode ?: 'ALL_TESTS').trim().toUpperCase()
-    def checkboxMap = getTestCaseCheckboxMap()
-    def resolved = checkboxMap
-        .findAll { row -> (paramsObj."${row.param}" as boolean) }
-        .collect { row -> row.file }
-        .unique()
-        .sort()
-
-    if (mode == 'ALL_TESTS') {
-        if (!resolved.isEmpty()) {
-            echo "Checkboxes detected (${resolved.size()}) but TEST_SELECTION_MODE=ALL_TESTS; ignoring checkboxes and running full suite."
-        }
-        return allFiles
-    }
-
-    if (mode == 'SMOKE') {
-        if (!resolved.isEmpty()) {
-            echo "Checkboxes detected (${resolved.size()}) but TEST_SELECTION_MODE=SMOKE; ignoring checkboxes and running predefined SMOKE suite."
-        }
-        return smokeFiles
-    }
-
-    if (mode != 'CHECKBOX_SELECTION') {
-        error("Unsupported TEST_SELECTION_MODE='${selectionMode}'. Allowed values: ALL_TESTS, SMOKE, CHECKBOX_SELECTION.")
-    }
-
-    if (resolved.isEmpty()) {
-        error('No test checkbox selected. Either select one or more TEST_* checkboxes, or set TEST_SELECTION_MODE=ALL_TESTS.')
-    }
-    return resolved
-}
-
-def validateRuntimeParameters(String selectionMode, String infraRetryCount) {
-    def mode = (selectionMode ?: '').trim().toUpperCase()
-    if (!(mode in ['ALL_TESTS', 'SMOKE', 'CHECKBOX_SELECTION'])) {
-        error("Invalid TEST_SELECTION_MODE='${selectionMode}'. Allowed values: ALL_TESTS, SMOKE, CHECKBOX_SELECTION.")
-    }
-
+def validateRuntimeParameters(String infraRetryCount) {
     def rawRetry = (infraRetryCount ?: '').trim()
     if (!(rawRetry ==~ /^\d+$/)) {
         error("INFRA_RETRY_COUNT must be a non-negative integer, but got '${infraRetryCount}'.")
     }
 }
 
-def getSmokeTestCaseFiles() {
-    return [
-        'tests/test_dakota_search_time.py',
-        'tests/test_dakota_login.py'
-    ]
-}
-
-def getAvailableTestCaseFiles() {
+def getAllTestCaseFiles() {
     return [
         'tests/test_dakota_search_time.py',
         'tests/test_company_detail_loading_time.py',
         'tests/test_company_contacts_loading_time.py',
         'tests/test_company_type_specific_tab_loading_time.py',
-        'tests/test_search_load_more_time.py'
-    ]
-}
-
-def getTestCaseCheckboxMap() {
-    return [
-        [param: 'TEST_SEARCH_TIME', file: 'tests/test_dakota_search_time.py'],
-        [param: 'TEST_DETAIL_LOADING', file: 'tests/test_company_detail_loading_time.py'],
-        [param: 'TEST_CONTACTS_LOADING', file: 'tests/test_company_contacts_loading_time.py'],
-        [param: 'TEST_TAB_LOADING', file: 'tests/test_company_type_specific_tab_loading_time.py'],
-        [param: 'TEST_LOAD_MORE', file: 'tests/test_search_load_more_time.py'],
-        [param: 'TEST_LOGIN', file: 'tests/test_dakota_login.py']
+        'tests/test_search_load_more_time.py',
+        'tests/test_dakota_login.py'
     ]
 }
 
