@@ -4,6 +4,7 @@ Configure Jenkins for Dakota Chrome Extension Performance (SCM pipeline).
 Creates/updates:
   - Credential dakota-portal-creds
   - Pipeline job Dakota-Chrome-Extension-Performance from GitHub SCM
+  - Scheduled job Dakota-Chrome-Extension-Performance-Weekly (Mondays 14:00)
 
 Usage:
   py -3.13 jenkins_setup.py
@@ -27,6 +28,8 @@ GITHUB_REPO = "https://github.com/TestWithMani/dakota-chrome-ext-performance.git
 GITHUB_BRANCH = "main"
 
 JOB_NAME = "Dakota-Chrome-Extension-Performance"
+SCHEDULED_JOB_NAME = "Dakota-Chrome-Extension-Performance-Weekly"
+CRON_SCHEDULE = "0 14 * * 1"  # Monday 14:00 (Jenkins server timezone)
 CREDENTIAL_ID = "dakota-portal-creds"
 PORTAL_USERNAME = "test_automation@dakota.com"
 PORTAL_PASSWORD = "@#$%1234uatest%%"
@@ -112,10 +115,14 @@ def job_exists(s: requests.Session, name: str) -> bool:
     return s.get(f"{JENKINS_URL}/job/{name}/api/json", timeout=30).status_code == 200
 
 
-def build_scm_job_config_xml() -> str:
+def build_scm_job_config_xml(
+    job_name: str,
+    description: str,
+    triggers_xml: str = "<triggers/>",
+) -> str:
     return f"""<?xml version='1.1' encoding='UTF-8'?>
 <flow-definition plugin="workflow-job">
-  <description>Dakota Chrome Extension performance — Selenium headless, Excel, Allure, email</description>
+  <description>{xmlutils.escape(description)}</description>
   <keepDependencies>false</keepDependencies>
   <properties/>
   <definition class="org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition" plugin="workflow-cps">
@@ -138,20 +145,28 @@ def build_scm_job_config_xml() -> str:
     <scriptPath>Jenkinsfile</scriptPath>
     <lightweight>false</lightweight>
   </definition>
-  <triggers/>
+  {triggers_xml}
   <disabled>false</disabled>
 </flow-definition>
 """
 
 
-def create_or_update_job(s: requests.Session) -> None:
-    config_xml = build_scm_job_config_xml()
+def build_scheduled_job_triggers_xml() -> str:
+    return f"""<triggers>
+  <hudson.triggers.TimerTrigger>
+    <spec>{CRON_SCHEDULE}</spec>
+  </hudson.triggers.TimerTrigger>
+</triggers>"""
+
+
+def create_or_update_job(s: requests.Session, job_name: str, description: str, triggers_xml: str) -> None:
+    config_xml = build_scm_job_config_xml(job_name, description, triggers_xml)
     headers = crumb_headers(s)
     headers["Content-Type"] = "application/xml; charset=UTF-8"
 
-    if job_exists(s, JOB_NAME):
+    if job_exists(s, job_name):
         resp = s.post(
-            f"{JENKINS_URL}/job/{JOB_NAME}/config.xml",
+            f"{JENKINS_URL}/job/{job_name}/config.xml",
             headers=headers,
             data=config_xml.encode("utf-8"),
             timeout=120,
@@ -160,7 +175,7 @@ def create_or_update_job(s: requests.Session) -> None:
     else:
         resp = s.post(
             f"{JENKINS_URL}/createItem",
-            params={"name": JOB_NAME},
+            params={"name": job_name},
             headers=headers,
             data=config_xml.encode("utf-8"),
             timeout=120,
@@ -169,9 +184,25 @@ def create_or_update_job(s: requests.Session) -> None:
 
     if resp.status_code not in (200, 201, 302):
         raise RuntimeError(f"{action} job failed HTTP {resp.status_code}: {resp.text[:1500]}")
-    print(f"[OK] {action} SCM pipeline job: {JOB_NAME}")
+    print(f"[OK] {action} SCM pipeline job: {job_name}")
     print(f"     Repo: {GITHUB_REPO}")
     print(f"     Branch: {GITHUB_BRANCH}")
+
+
+def create_or_update_jobs(s: requests.Session) -> None:
+    create_or_update_job(
+        s,
+        JOB_NAME,
+        "Dakota Chrome Extension performance — Selenium headless, Excel, Allure, email",
+        "<triggers/>",
+    )
+    create_or_update_job(
+        s,
+        SCHEDULED_JOB_NAME,
+        "Weekly scheduled Dakota Chrome Extension performance run (Mondays 14:00 server time)",
+        build_scheduled_job_triggers_xml(),
+    )
+    print(f"     Weekly schedule: {CRON_SCHEDULE} (Monday 14:00, Jenkins server timezone)")
 
 
 def trigger_build(s: requests.Session) -> None:
@@ -193,12 +224,13 @@ def main() -> int:
     print("[OK] Jenkins API login successful")
 
     create_or_update_portal_credential(s)
-    create_or_update_job(s)
+    create_or_update_jobs(s)
 
     if args.trigger_build:
         trigger_build(s)
 
     print(f"\nJob URL: {JENKINS_URL}/job/{JOB_NAME}/")
+    print(f"Weekly job URL: {JENKINS_URL}/job/{SCHEDULED_JOB_NAME}/")
     return 0
 
 

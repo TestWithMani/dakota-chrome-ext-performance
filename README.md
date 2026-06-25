@@ -295,6 +295,18 @@ Pipeline is loaded from this repo via SCM:
 | **Script path** | `Jenkinsfile` |
 | **Job name** | `Dakota-Chrome-Extension-Performance` |
 
+A second job, **`Dakota-Chrome-Extension-Performance-Weekly`**, runs the same pipeline on a schedule:
+
+| Setting | Value |
+|---------|-------|
+| **Schedule** | Every Monday at **14:00** (Jenkins server timezone) |
+| **Cron** | `0 14 * * 1` |
+| **Default email** | `usman.arshad@rolustech.com` |
+| **Additional emails** | `omer.shafiq@rolustech.net`, `imad.ali@rolustech.com`, `schal.hasnain@rolustech.com`, `faseeh.ahmad@rolustech.com` |
+| **Other parameters** | Same defaults as the main job (`INFRA_RETRY_COUNT=3`, Allure on, email on) |
+
+Both jobs are created/updated by `jenkins_setup.py`.
+
 ### Provision the job (first time)
 
 ```powershell

@@ -262,9 +262,19 @@ pipeline {
 }
 
 def getEffectiveRunConfig() {
+    def weeklyJobName = 'Dakota-Chrome-Extension-Performance-Weekly'
+    def isWeeklyJob = (env.JOB_NAME ?: '') == weeklyJobName
+
+    def defaultEmail = isWeeklyJob
+        ? 'usman.arshad@rolustech.com'
+        : (params.DEFAULT_EMAIL as String)
+    def additionalEmails = isWeeklyJob
+        ? 'omer.shafiq@rolustech.net,imad.ali@rolustech.com,schal.hasnain@rolustech.com,faseeh.ahmad@rolustech.com'
+        : (params.ADDITIONAL_EMAILS as String)
+
     return [
-        additionalEmails : params.ADDITIONAL_EMAILS as String,
-        defaultEmail     : params.DEFAULT_EMAIL as String,
+        additionalEmails : additionalEmails,
+        defaultEmail     : defaultEmail,
         infraRetryCount  : params.INFRA_RETRY_COUNT as String,
         runAllure        : params.RUN_ALLURE as boolean,
         sendEmail        : params.SEND_EMAIL as boolean,
