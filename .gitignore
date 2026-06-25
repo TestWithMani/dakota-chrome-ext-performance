@@ -2,7 +2,6 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
-.chrome-demo-profile/
 venv/
 .venv/
 .venv-jenkins/
