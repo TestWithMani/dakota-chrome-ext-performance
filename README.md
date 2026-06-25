@@ -325,9 +325,9 @@ Create a **Username with password** credential:
 | `DEFAULT_EMAIL` | Primary report recipient (default: `usman.arshad@rolustech.com`) |
 | `ADDITIONAL_EMAILS` | Comma-separated extra recipients |
 | `DAKOTA_CREDENTIALS_ID` | Jenkins credential ID for portal login |
-| `RUN_ALLURE` | Publish Allure report in Jenkins |
+| `INFRA_RETRY_COUNT` | Retry flaky Selenium failures (always enabled; set `0` to disable) |
+| `RUN_ALLURE` | Generate and publish Allure report in Jenkins |
 | `SEND_EMAIL` | Send HTML summary email with attachments |
-| `ENABLE_INFRA_RETRY` / `INFRA_RETRY_COUNT` | Retry flaky Selenium failures |
 
 Each build **always runs the full test suite** (5 performance tests + login) and **always generates fresh** Excel, Allure, and JUnit artifacts.
 

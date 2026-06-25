@@ -10,24 +10,19 @@ pipeline {
 
     parameters {
         string(
-            name: 'ADDITIONAL_EMAILS',
-            defaultValue: '',
-            description: 'Additional email recipients (comma-separated list).'
-        )
-        string(
             name: 'DEFAULT_EMAIL',
             defaultValue: 'usman.arshad@rolustech.com',
             description: 'Primary recipient for pipeline report emails.'
         )
         string(
+            name: 'ADDITIONAL_EMAILS',
+            defaultValue: '',
+            description: 'Additional email recipients (comma-separated list).'
+        )
+        string(
             name: 'DAKOTA_CREDENTIALS_ID',
             defaultValue: 'dakota-portal-creds',
             description: 'Jenkins credential ID for Dakota portal login (DAKOTA_USERNAME / DAKOTA_PASSWORD).'
-        )
-        booleanParam(
-            name: 'ENABLE_INFRA_RETRY',
-            defaultValue: true,
-            description: 'Automatically retry only flaky/infrastructure Selenium failures.'
         )
         string(
             name: 'INFRA_RETRY_COUNT',
@@ -184,7 +179,6 @@ pipeline {
                     def runCmd = buildPytestCommand(
                         selectedTestFiles,
                         effectiveCfg.runAllure as boolean,
-                        effectiveCfg.enableInfraRetry as boolean,
                         effectiveCfg.infraRetryCount as String
                     )
                     echo "Pytest command: pytest ${runCmd}"
@@ -271,7 +265,6 @@ def getEffectiveRunConfig() {
     return [
         additionalEmails : params.ADDITIONAL_EMAILS as String,
         defaultEmail     : params.DEFAULT_EMAIL as String,
-        enableInfraRetry : params.ENABLE_INFRA_RETRY as boolean,
         infraRetryCount  : params.INFRA_RETRY_COUNT as String,
         runAllure        : params.RUN_ALLURE as boolean,
         sendEmail        : params.SEND_EMAIL as boolean,
@@ -290,7 +283,6 @@ def shellQuotePytestArgs(List parts) {
 def buildPytestCommand(
     List selectedTestFiles,
     boolean runAllure,
-    boolean enableInfraRetry,
     String infraRetryCount
 ) {
     def allureArg = runAllure ? "--alluredir=${env.ALLURE_DIR}" : ''
@@ -307,33 +299,31 @@ def buildPytestCommand(
         parts << allureArg
     }
 
-    if (enableInfraRetry) {
-        def retries = 0
-        try {
-            retries = Math.max((infraRetryCount ?: '0').trim() as int, 0)
-        } catch (Exception ignored) {
-            retries = 1
-        }
+    def retries = 0
+    try {
+        retries = Math.max((infraRetryCount ?: '0').trim() as int, 0)
+    } catch (Exception ignored) {
+        retries = 1
+    }
 
-        if (retries > 0) {
-            parts << "--reruns=${retries}"
-            parts << '--reruns-delay=2'
-            parts << '--only-rerun=(selenium\\.common\\.exceptions\\.)?TimeoutException'
-            parts << '--only-rerun=(selenium\\.common\\.exceptions\\.)?NoSuchElementException'
-            parts << '--only-rerun=(selenium\\.common\\.exceptions\\.)?StaleElementReferenceException'
-            parts << '--only-rerun=(selenium\\.common\\.exceptions\\.)?ElementClickInterceptedException'
-            parts << '--only-rerun=(selenium\\.common\\.exceptions\\.)?WebDriverException'
-            parts << '--only-rerun=SessionNotCreatedException'
-            parts << '--only-rerun=urllib3\\.exceptions\\.ReadTimeoutError'
-            parts << '--only-rerun=ReadTimeoutError'
-            parts << '--only-rerun=HTTPConnectionPool\\(host='
-            parts << '--only-rerun=Read\\s+timed\\s+out'
-            parts << '--only-rerun=TimeoutError'
-            parts << '--only-rerun=timed\\s+out'
-            parts << '--only-rerun=disconnected:\\s+not\\s+connected\\s+to\\s+DevTools'
-            parts << '--only-rerun=chrome\\s+not\\s+reachable'
-            parts << '--only-rerun=ERR_CONNECTION_RESET'
-        }
+    if (retries > 0) {
+        parts << "--reruns=${retries}"
+        parts << '--reruns-delay=2'
+        parts << '--only-rerun=(selenium\\.common\\.exceptions\\.)?TimeoutException'
+        parts << '--only-rerun=(selenium\\.common\\.exceptions\\.)?NoSuchElementException'
+        parts << '--only-rerun=(selenium\\.common\\.exceptions\\.)?StaleElementReferenceException'
+        parts << '--only-rerun=(selenium\\.common\\.exceptions\\.)?ElementClickInterceptedException'
+        parts << '--only-rerun=(selenium\\.common\\.exceptions\\.)?WebDriverException'
+        parts << '--only-rerun=SessionNotCreatedException'
+        parts << '--only-rerun=urllib3\\.exceptions\\.ReadTimeoutError'
+        parts << '--only-rerun=ReadTimeoutError'
+        parts << '--only-rerun=HTTPConnectionPool\\(host='
+        parts << '--only-rerun=Read\\s+timed\\s+out'
+        parts << '--only-rerun=TimeoutError'
+        parts << '--only-rerun=timed\\s+out'
+        parts << '--only-rerun=disconnected:\\s+not\\s+connected\\s+to\\s+DevTools'
+        parts << '--only-rerun=chrome\\s+not\\s+reachable'
+        parts << '--only-rerun=ERR_CONNECTION_RESET'
     }
 
     parts << "--junitxml=${env.PYTEST_JUNIT}"
