@@ -175,7 +175,7 @@ def create_or_update_job(s: requests.Session) -> None:
     print(f"[OK] {action} SCM pipeline job: {JOB_NAME}")
     print(f"     Repo: {GITHUB_REPO}")
     print(f"     Branch: {GITHUB_BRANCH}")
-    print("     Schedule: Jenkinsfile triggers { cron('33 16 * * 4') } (Thursday 16:33)")
+    print("     Schedule: Jenkinsfile triggers { cron('0 14 * * 1') } (Monday 14:00)")
 
 
 def delete_legacy_scheduled_job(s: requests.Session) -> None:

@@ -295,11 +295,11 @@ Pipeline is loaded from this repo via SCM:
 | **Script path** | `Jenkinsfile` |
 | **Job name** | `Dakota-Chrome-Extension-Performance` |
 
-The same job runs on a **weekly schedule** defined in `Jenkinsfile` (`triggers { cron('33 16 * * 4') }` — Thursday 4:33 PM, Jenkins server timezone). Timer-triggered builds automatically use a different email preset:
+The same job runs on a **weekly schedule** defined in `Jenkinsfile` (`triggers { cron('0 14 * * 1') }` — Monday 2:00 PM, Jenkins server timezone). Timer-triggered builds automatically use a different email preset:
 
 | Scheduled run | Value |
 |---------------|-------|
-| **Default email** | `usman.arshad@rolustech.com` |
+| **Default email** | `pstanley@dakota.com` |
 | **Additional emails** | `omer.shafiq@rolustech.net`, `imad.ali@rolustech.com`, `schal.hasnain@rolustech.com`, `faseeh.ahmad@rolustech.com` |
 | **Other parameters** | Same as manual builds (`draftcrmdev@rolustech.com` default only applies to manual runs) |
 

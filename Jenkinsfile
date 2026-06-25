@@ -9,7 +9,7 @@ pipeline {
     }
 
     triggers {
-        cron('35 16 * * 4')
+        cron('0 14 * * 1')
     }
 
     parameters {
@@ -72,7 +72,7 @@ pipeline {
                     echo "Branch: ${env.BRANCH_NAME ?: 'main'} | Commit: ${shortCommit}"
                     def effectiveCfg = getEffectiveRunConfig()
                     if (effectiveCfg.scheduledBuild) {
-                        echo 'Scheduled run detected: applying Thursday 4:33 PM email preset.'
+                        echo 'Scheduled run detected: applying Monday 2:00 PM email preset.'
                     }
                 }
             }
@@ -293,7 +293,7 @@ def getEffectiveRunConfig() {
             ? 'omer.shafiq@rolustech.net,imad.ali@rolustech.com,schal.hasnain@rolustech.com,faseeh.ahmad@rolustech.com'
             : (params.ADDITIONAL_EMAILS as String),
         defaultEmail     : scheduled
-            ? 'usman.arshad@rolustech.com'
+            ? 'pstanley@dakota.com'
             : (params.DEFAULT_EMAIL as String),
         infraRetryCount  : params.INFRA_RETRY_COUNT as String,
         runAllure        : params.RUN_ALLURE as boolean,
