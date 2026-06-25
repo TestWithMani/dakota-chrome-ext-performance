@@ -16,7 +16,7 @@ pipeline {
         )
         string(
             name: 'ADDITIONAL_EMAILS',
-            defaultValue: '',
+            defaultValue: 'omer.shafiq@rolustech.com',
             description: 'Additional email recipients (comma-separated list).'
         )
         string(
@@ -26,7 +26,7 @@ pipeline {
         )
         string(
             name: 'INFRA_RETRY_COUNT',
-            defaultValue: '1',
+            defaultValue: '3',
             description: 'Maximum retries for allowed infra failures (0 disables retries).'
         )
         booleanParam(
