@@ -35,6 +35,7 @@ from download_extension import (
 )
 from pages.dakota_auth import DakotaCredentials, login_to_dakota
 from pages.dakota_performance import DakotaPerformance
+from utils.allure_helpers import allure_available, attach_page_info, attach_screenshot
 
 # How long (in seconds) to wait for pages and elements before failing a test
 DEFAULT_TIMEOUT = 20
@@ -454,6 +455,7 @@ def logged_in_driver(extension_paths, performance_profile_dir, dakota_credential
 
     login_to_dakota(driver, dakota_credentials, final_extension_delay=False)
 
+    attach_screenshot(driver, "Performance session — logged in")
     yield driver
     driver.quit()
 
@@ -483,3 +485,50 @@ def pytest_collection_modifyitems(items):
         "test_search_load_more_time": 5,
     }
     items.sort(key=lambda item: order.get(item.name, 99))
+
+
+@pytest.fixture(autouse=True)
+def allure_test_labels(request):
+    """Add feature/story/title to every test in the Allure report."""
+    if not allure_available():
+        return
+
+    import allure
+
+    allure.dynamic.feature("Dakota Chrome Extension")
+    allure.dynamic.title(request.node.name.replace("_", " ").strip())
+
+    if "login" in request.node.name:
+        allure.dynamic.story("Login")
+    elif "performance" in request.keywords or request.node.get_closest_marker("performance"):
+        allure.dynamic.story("Performance")
+    else:
+        allure.dynamic.story("Extension")
+
+
+def _driver_from_test_item(item):
+    """Resolve the active WebDriver from pytest fixture names."""
+    for fixture_name in ("chrome_driver", "logged_in_driver", "dakota_performance"):
+        if fixture_name not in item.funcargs:
+            continue
+        value = item.funcargs[fixture_name]
+        if fixture_name == "dakota_performance":
+            return value.driver
+        return value
+    return None
+
+
+@pytest.hookimpl(hookwrapper=True, tryfirst=True)
+def pytest_runtest_makereport(item, call):
+    """Attach a screenshot to Allure when a test fails."""
+    outcome = yield
+    report = outcome.get_result()
+    if report.when != "call" or not report.failed or not allure_available():
+        return
+
+    driver = _driver_from_test_item(item)
+    if driver is None:
+        return
+
+    attach_screenshot(driver, f"Failure — {item.name}")
+    attach_page_info(driver, "Failure page info")

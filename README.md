@@ -232,6 +232,8 @@ pytest tests/test_dakota_login.py::test_dakota_login_step_by_step -v --keep-open
 
 ### Allure (local)
 
+Reports include **step-by-step flows** (login, search, tab loads) and **screenshots** after each step. A failure screenshot and page URL are attached automatically.
+
 After a test run with `allure-pytest` installed:
 
 ```powershell

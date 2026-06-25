@@ -18,6 +18,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
+from utils.allure_helpers import allure_step, attach_page_info, attach_screenshot
+
 # Dakota portal — log in here FIRST before using the extension
 DAKOTA_PORTAL_URL = "https://dakotanetworks.my.site.com/dakotaMarketplace/s/"
 
@@ -355,18 +357,24 @@ def login_to_dakota_portal(
 
     Opens the portal URL, fills username/password, and waits for the home page.
     """
-    driver.get(portal_url)
-    WebDriverWait(driver, timeout).until(
-        lambda d: d.execute_script("return document.readyState") == "complete"
-    )
+    with allure_step(driver, "Open Dakota portal"):
+        driver.get(portal_url)
+        WebDriverWait(driver, timeout).until(
+            lambda d: d.execute_script("return document.readyState") == "complete"
+        )
+        attach_page_info(driver)
 
     if "SigninUI" in driver.current_url or driver.find_elements(By.XPATH, LOGIN_EMAIL_XPATH):
-        wait_for_portal_login_form(driver, timeout=timeout)
-        fill_portal_login_form(driver, credentials, timeout=timeout)
-        wait_for_portal_logged_in(driver, timeout=timeout)
+        with allure_step(driver, "Fill portal login form"):
+            wait_for_portal_login_form(driver, timeout=timeout)
+            fill_portal_login_form(driver, credentials, timeout=timeout)
+        with allure_step(driver, "Wait for portal home page"):
+            wait_for_portal_logged_in(driver, timeout=timeout)
     elif _is_portal_home_url(driver.current_url):
-        wait_for_extension_on_page(driver, timeout=timeout)
+        with allure_step(driver, "Portal session already active"):
+            wait_for_extension_on_page(driver, timeout=timeout)
     else:
+        attach_screenshot(driver, "Unexpected portal URL")
         raise TimeoutException(f"Unexpected portal URL after navigation: {driver.current_url}")
 
 
@@ -379,12 +387,17 @@ def authenticate_extension_via_sso(
 
     Must be called AFTER login_to_dakota_portal() on the same browser session.
     """
-    wait_for_extension_on_page(driver, timeout=timeout)
-    open_dakota_sidebar(driver, timeout=timeout)
-    click_extension_login_button(driver, timeout=timeout)
-    wait_for_extension_sso_complete(driver, timeout=timeout)
-    open_dakota_sidebar(driver, timeout=timeout)
-    wait_for_extension_logged_in(driver, timeout=timeout)
+    with allure_step(driver, "Wait for extension on portal page"):
+        wait_for_extension_on_page(driver, timeout=timeout)
+    with allure_step(driver, "Open extension sidebar"):
+        open_dakota_sidebar(driver, timeout=timeout)
+    with allure_step(driver, "Click Log in with Salesforce"):
+        click_extension_login_button(driver, timeout=timeout)
+    with allure_step(driver, "Wait for extension SSO"):
+        wait_for_extension_sso_complete(driver, timeout=timeout)
+    with allure_step(driver, "Verify extension search is ready"):
+        open_dakota_sidebar(driver, timeout=timeout)
+        wait_for_extension_logged_in(driver, timeout=timeout)
 
 
 def login_to_dakota(
@@ -400,7 +413,11 @@ def login_to_dakota(
 
     Set final_extension_delay=False for performance tests (skips the 5s demo pause).
     """
-    login_to_dakota_portal(driver, credentials, portal_url=portal_url, timeout=timeout)
-    authenticate_extension_via_sso(driver, timeout=EXTENSION_SSO_TIMEOUT)
+    with allure_step(driver, "Portal + extension login", screenshot=False):
+        login_to_dakota_portal(driver, credentials, portal_url=portal_url, timeout=timeout)
+        authenticate_extension_via_sso(driver, timeout=EXTENSION_SSO_TIMEOUT)
     if final_extension_delay:
-        click_extension_again_with_delay(driver)
+        with allure_step(driver, "Re-open extension after login"):
+            click_extension_again_with_delay(driver)
+    else:
+        attach_screenshot(driver, "Logged in — extension ready")

@@ -23,6 +23,7 @@ from pages.dakota_auth import (
     wait_for_extension_logged_in,
 )
 from utils.performance_config import profile_tab_for_company_type
+from utils.allure_helpers import allure_step, attach_screenshot
 from utils.search_report import (
     PERFORMANCE_TEST_CASE_LABELS,
     SearchSummary,
@@ -99,12 +100,13 @@ class DakotaPerformance:
 
     def ensure_logged_in_on_portal(self, credentials) -> None:
         """Portal login + extension SSO (reuses pages.dakota_auth)."""
-        if not self._search_input_ready():
-            login_to_dakota(self.driver, credentials, final_extension_delay=False)
-            wait_for_extension_logged_in(self.driver)
-        else:
-            open_dakota_sidebar(self.driver)
-            wait_for_extension_logged_in(self.driver)
+        with allure_step(self.driver, "Ensure portal and extension are logged in"):
+            if not self._search_input_ready():
+                login_to_dakota(self.driver, credentials, final_extension_delay=False)
+                wait_for_extension_logged_in(self.driver)
+            else:
+                open_dakota_sidebar(self.driver)
+                wait_for_extension_logged_in(self.driver)
 
     def clear_search(self) -> None:
         self._js(
@@ -176,19 +178,21 @@ class DakotaPerformance:
         )
 
     def search_company(self, term: str, sample_number: int = 1) -> SearchTiming:
-        if sample_number > 1:
-            self.driver.get(DAKOTA_PORTAL_URL)
-            self._wait_shadow()
-            open_dakota_sidebar(self.driver)
+        step_title = f"Search company '{term}' (sample {sample_number})"
+        with allure_step(self.driver, step_title):
+            if sample_number > 1:
+                self.driver.get(DAKOTA_PORTAL_URL)
+                self._wait_shadow()
+                open_dakota_sidebar(self.driver)
 
-        started = time.perf_counter()
-        self.type_search_term(term)
-        timing = self.wait_for_search_finished()
-        return SearchTiming(
-            elapsed_s=time.perf_counter() - started,
-            result_count=timing.result_count,
-            has_load_more=timing.has_load_more,
-        )
+            started = time.perf_counter()
+            self.type_search_term(term)
+            timing = self.wait_for_search_finished()
+            return SearchTiming(
+                elapsed_s=time.perf_counter() - started,
+                result_count=timing.result_count,
+                has_load_more=timing.has_load_more,
+            )
 
     def get_first_result_info(self) -> tuple[str, str]:
         info = self._js(
@@ -340,9 +344,11 @@ class DakotaPerformance:
         report_rows: list[dict],
         summaries: list[SearchSummary],
     ) -> Path:
-        report = append_test_case_rows(get_performance_report_path(), report_rows)
-        self._assert_summaries(summaries, report)
-        return report
+        test_case = PERFORMANCE_TEST_CASE_LABELS[test_case_key]
+        with allure_step(self.driver, f"Write Excel report — {test_case}"):
+            report = append_test_case_rows(get_performance_report_path(), report_rows)
+            self._assert_summaries(summaries, report)
+            return report
 
     def run_search_benchmark(self, terms, iterations: int, benchmark_s: float) -> Path:
         metadata = get_search_report_metadata(self.driver)
@@ -350,23 +356,25 @@ class DakotaPerformance:
         report_rows: list[dict] = []
         summaries: list[SearchSummary] = []
 
-        for term in terms:
-            company_timings: list[float] = []
-            for sample in range(1, iterations + 1):
-                timing = self.search_company(term, sample_number=sample)
-                company_timings.append(timing.elapsed_s)
-                report_rows.append(
-                    build_iteration_row(test_case, term, sample, timing.elapsed_s, metadata)
-                )
-                print(
-                    f"[Search] {test_case} | {term} sample {sample}: "
-                    f"{timing.elapsed_s:.3f}s ({timing.result_count} results)"
-                )
-            summary_row, summary = build_company_summary_row(
-                test_case, term, company_timings, benchmark_s, metadata
-            )
-            report_rows.append(summary_row)
-            summaries.append(summary)
+        with allure_step(self.driver, f"Benchmark — {test_case}", screenshot=False):
+            for term in terms:
+                company_timings: list[float] = []
+                for sample in range(1, iterations + 1):
+                    timing = self.search_company(term, sample_number=sample)
+                    company_timings.append(timing.elapsed_s)
+                    report_rows.append(
+                        build_iteration_row(test_case, term, sample, timing.elapsed_s, metadata)
+                    )
+                    print(
+                        f"[Search] {test_case} | {term} sample {sample}: "
+                        f"{timing.elapsed_s:.3f}s ({timing.result_count} results)"
+                    )
+                with allure_step(self.driver, f"{test_case} summary — {term}"):
+                    summary_row, summary = build_company_summary_row(
+                        test_case, term, company_timings, benchmark_s, metadata
+                    )
+                    report_rows.append(summary_row)
+                    summaries.append(summary)
 
         return self._write_company_benchmark_report("company_search", report_rows, summaries)
 
@@ -376,28 +384,31 @@ class DakotaPerformance:
         report_rows: list[dict] = []
         summaries: list[SearchSummary] = []
 
-        for term in terms:
-            company_timings: list[float] = []
-            for sample in range(1, iterations + 1):
-                if sample == 1:
-                    self.reset_to_search_home()
-                self.search_company(term, sample_number=sample)
-                started = time.perf_counter()
-                name, ctype = self.click_first_search_result()
-                self.wait_for_company_detail()
-                total = time.perf_counter() - started
-                company_timings.append(total)
-                report_rows.append(
-                    build_iteration_row(test_case, term, sample, total, metadata)
-                )
-                print(f"[Detail] {test_case} | {term} sample {sample}: {name} in {total:.3f}s")
-                time.sleep(VISIBILITY_PAUSE_SEC)
-                self.reset_to_search_home()
-            summary_row, summary = build_company_summary_row(
-                test_case, term, company_timings, benchmark_s, metadata
-            )
-            report_rows.append(summary_row)
-            summaries.append(summary)
+        with allure_step(self.driver, f"Benchmark — {test_case}", screenshot=False):
+            for term in terms:
+                company_timings: list[float] = []
+                for sample in range(1, iterations + 1):
+                    with allure_step(self.driver, f"Company detail load — {term} (sample {sample})"):
+                        if sample == 1:
+                            self.reset_to_search_home()
+                        self.search_company(term, sample_number=sample)
+                        started = time.perf_counter()
+                        name, ctype = self.click_first_search_result()
+                        self.wait_for_company_detail()
+                        total = time.perf_counter() - started
+                        company_timings.append(total)
+                        report_rows.append(
+                            build_iteration_row(test_case, term, sample, total, metadata)
+                        )
+                        print(f"[Detail] {test_case} | {term} sample {sample}: {name} in {total:.3f}s")
+                        time.sleep(VISIBILITY_PAUSE_SEC)
+                        self.reset_to_search_home()
+                with allure_step(self.driver, f"{test_case} summary — {term}"):
+                    summary_row, summary = build_company_summary_row(
+                        test_case, term, company_timings, benchmark_s, metadata
+                    )
+                    report_rows.append(summary_row)
+                    summaries.append(summary)
 
         return self._write_company_benchmark_report("company_detail", report_rows, summaries)
 
@@ -407,31 +418,34 @@ class DakotaPerformance:
         report_rows: list[dict] = []
         summaries: list[SearchSummary] = []
 
-        for term in terms:
-            company_timings: list[float] = []
-            for sample in range(1, iterations + 1):
-                if sample == 1:
-                    self.reset_to_search_home()
-                self.search_company(term, sample_number=sample)
-                name, ctype = self.click_first_search_result()
-                self.wait_for_company_detail()
-                time.sleep(VISIBILITY_PAUSE_SEC)
-                started = time.perf_counter()
-                self.click_tab_by_name("Contacts")
-                self.wait_for_contacts_loaded()
-                total = time.perf_counter() - started
-                company_timings.append(total)
-                report_rows.append(
-                    build_iteration_row(test_case, term, sample, total, metadata)
-                )
-                print(f"[Contacts] {test_case} | {term} sample {sample}: {name} in {total:.3f}s")
-                time.sleep(VISIBILITY_PAUSE_SEC)
-                self.reset_to_search_home()
-            summary_row, summary = build_company_summary_row(
-                test_case, term, company_timings, benchmark_s, metadata
-            )
-            report_rows.append(summary_row)
-            summaries.append(summary)
+        with allure_step(self.driver, f"Benchmark — {test_case}", screenshot=False):
+            for term in terms:
+                company_timings: list[float] = []
+                for sample in range(1, iterations + 1):
+                    with allure_step(self.driver, f"Contacts tab load — {term} (sample {sample})"):
+                        if sample == 1:
+                            self.reset_to_search_home()
+                        self.search_company(term, sample_number=sample)
+                        name, ctype = self.click_first_search_result()
+                        self.wait_for_company_detail()
+                        time.sleep(VISIBILITY_PAUSE_SEC)
+                        started = time.perf_counter()
+                        self.click_tab_by_name("Contacts")
+                        self.wait_for_contacts_loaded()
+                        total = time.perf_counter() - started
+                        company_timings.append(total)
+                        report_rows.append(
+                            build_iteration_row(test_case, term, sample, total, metadata)
+                        )
+                        print(f"[Contacts] {test_case} | {term} sample {sample}: {name} in {total:.3f}s")
+                        time.sleep(VISIBILITY_PAUSE_SEC)
+                        self.reset_to_search_home()
+                with allure_step(self.driver, f"{test_case} summary — {term}"):
+                    summary_row, summary = build_company_summary_row(
+                        test_case, term, company_timings, benchmark_s, metadata
+                    )
+                    report_rows.append(summary_row)
+                    summaries.append(summary)
 
         return self._write_company_benchmark_report("company_contacts", report_rows, summaries)
 
@@ -447,34 +461,37 @@ class DakotaPerformance:
         report_rows: list[dict] = []
         summaries: list[SearchSummary] = []
 
-        for term in terms:
-            company_timings: list[float] = []
-            for sample in range(1, iterations + 1):
-                if sample == 1:
-                    self.reset_to_search_home()
-                self.search_company(term, sample_number=sample)
-                name, ctype = self.click_first_search_result()
-                self.wait_for_company_detail()
-                tab = profile_tab_for_company_type(ctype)
-                if not tab:
-                    pytest.fail(f"Unknown company type '{ctype}' for term '{term}'.")
-                time.sleep(VISIBILITY_PAUSE_SEC)
-                started = time.perf_counter()
-                self.click_tab_by_name(tab)
-                self.wait_for_tab_content(tab_content_selectors[tab])
-                total = time.perf_counter() - started
-                company_timings.append(total)
-                report_rows.append(
-                    build_iteration_row(test_case, term, sample, total, metadata)
-                )
-                print(f"[Tab] {test_case} | {term} sample {sample}: {name}->{tab} in {total:.3f}s")
-                time.sleep(VISIBILITY_PAUSE_SEC)
-                self.reset_to_search_home()
-            summary_row, summary = build_company_summary_row(
-                test_case, term, company_timings, benchmark_s, metadata
-            )
-            report_rows.append(summary_row)
-            summaries.append(summary)
+        with allure_step(self.driver, f"Benchmark — {test_case}", screenshot=False):
+            for term in terms:
+                company_timings: list[float] = []
+                for sample in range(1, iterations + 1):
+                    with allure_step(self.driver, f"Profile tab load — {term} (sample {sample})"):
+                        if sample == 1:
+                            self.reset_to_search_home()
+                        self.search_company(term, sample_number=sample)
+                        name, ctype = self.click_first_search_result()
+                        self.wait_for_company_detail()
+                        tab = profile_tab_for_company_type(ctype)
+                        if not tab:
+                            pytest.fail(f"Unknown company type '{ctype}' for term '{term}'.")
+                        time.sleep(VISIBILITY_PAUSE_SEC)
+                        started = time.perf_counter()
+                        self.click_tab_by_name(tab)
+                        self.wait_for_tab_content(tab_content_selectors[tab])
+                        total = time.perf_counter() - started
+                        company_timings.append(total)
+                        report_rows.append(
+                            build_iteration_row(test_case, term, sample, total, metadata)
+                        )
+                        print(f"[Tab] {test_case} | {term} sample {sample}: {name}->{tab} in {total:.3f}s")
+                        time.sleep(VISIBILITY_PAUSE_SEC)
+                        self.reset_to_search_home()
+                with allure_step(self.driver, f"{test_case} summary — {term}"):
+                    summary_row, summary = build_company_summary_row(
+                        test_case, term, company_timings, benchmark_s, metadata
+                    )
+                    report_rows.append(summary_row)
+                    summaries.append(summary)
 
         return self._write_company_benchmark_report("company_type_tab", report_rows, summaries)
 
@@ -484,30 +501,38 @@ class DakotaPerformance:
         report_rows: list[dict] = []
         summaries: list[SearchSummary] = []
 
-        for term in terms:
-            company_timings: list[float] = []
-            for sample in range(1, iterations + 1):
-                if sample == 1:
-                    self.reset_to_search_home()
-                search = self.search_company(term, sample_number=sample)
-                if not search.has_load_more or search.result_count < 10:
-                    report_rows.append(
-                        build_iteration_row(test_case, term, sample, TIMING_NOT_APPLICABLE, metadata)
+        with allure_step(self.driver, f"Benchmark — {test_case}", screenshot=False):
+            for term in terms:
+                company_timings: list[float] = []
+                for sample in range(1, iterations + 1):
+                    with allure_step(self.driver, f"Load more — {term} (sample {sample})"):
+                        if sample == 1:
+                            self.reset_to_search_home()
+                        search = self.search_company(term, sample_number=sample)
+                        if not search.has_load_more or search.result_count < 10:
+                            report_rows.append(
+                                build_iteration_row(
+                                    test_case, term, sample, TIMING_NOT_APPLICABLE, metadata
+                                )
+                            )
+                            print(
+                                f"[Load more] {test_case} | {term} sample {sample}: "
+                                "skipped (no more pages)"
+                            )
+                            continue
+                        elapsed = self.scroll_and_click_load_more()
+                        company_timings.append(elapsed)
+                        report_rows.append(
+                            build_iteration_row(test_case, term, sample, elapsed, metadata)
+                        )
+                        print(f"[Load more] {test_case} | {term} sample {sample}: {elapsed:.3f}s")
+                        self.reset_to_search_home()
+                with allure_step(self.driver, f"{test_case} summary — {term}"):
+                    summary_row, summary = build_company_summary_row(
+                        test_case, term, company_timings, benchmark_s, metadata
                     )
-                    print(f"[Load more] {test_case} | {term} sample {sample}: skipped (no more pages)")
-                    continue
-                elapsed = self.scroll_and_click_load_more()
-                company_timings.append(elapsed)
-                report_rows.append(
-                    build_iteration_row(test_case, term, sample, elapsed, metadata)
-                )
-                print(f"[Load more] {test_case} | {term} sample {sample}: {elapsed:.3f}s")
-                self.reset_to_search_home()
-            summary_row, summary = build_company_summary_row(
-                test_case, term, company_timings, benchmark_s, metadata
-            )
-            report_rows.append(summary_row)
-            summaries.append(summary)
+                    report_rows.append(summary_row)
+                    summaries.append(summary)
 
         return self._write_company_benchmark_report("search_load_more", report_rows, summaries)
 
