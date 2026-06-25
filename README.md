@@ -335,9 +335,6 @@ Create a **Username with password** credential:
 | `SEND_EMAIL` | Send HTML summary email with attachments |
 | `FRESH_REPORT_OUTPUT` | Clear prior report artifacts before run |
 | `ENABLE_INFRA_RETRY` / `INFRA_RETRY_COUNT` | Retry flaky Selenium failures |
-| `PARALLEL_WORKERS` | Keep `1` (shared browser session) |
-| `PYTHON_EXE` | Optional explicit Python path on agent |
-| `ALLURE_JENKINS_TOOL` | Allure CLI tool name from Global Tool Configuration |
 
 **Selection modes**
 

@@ -19,11 +19,6 @@ pipeline {
             defaultValue: false,
             description: 'Clear old report artifacts before this run and generate fresh Excel + Allure output.'
         )
-        booleanParam(
-            name: 'RESET_JOB_BUILD_HISTORY',
-            defaultValue: false,
-            description: 'Safe mode: clean workspace report artifacts only (does not delete Jenkins build records).'
-        )
         string(
             name: 'ADDITIONAL_EMAILS',
             defaultValue: '',
@@ -39,16 +34,6 @@ pipeline {
             defaultValue: 'dakota-portal-creds',
             description: 'Jenkins credential ID for Dakota portal login (DAKOTA_USERNAME / DAKOTA_PASSWORD).'
         )
-        string(
-            name: 'PYTHON_EXE',
-            defaultValue: '',
-            description: 'Optional full path to python.exe on the agent. Empty = auto-detect (py -3, python3, python).'
-        )
-        string(
-            name: 'ALLURE_JENKINS_TOOL',
-            defaultValue: '',
-            description: 'Jenkins Allure Commandline tool name from Global Tool Configuration. Empty = default installation.'
-        )
         booleanParam(
             name: 'ENABLE_INFRA_RETRY',
             defaultValue: true,
@@ -58,11 +43,6 @@ pipeline {
             name: 'INFRA_RETRY_COUNT',
             defaultValue: '1',
             description: 'Maximum retries for allowed infra failures (0 disables retries).'
-        )
-        string(
-            name: 'PARALLEL_WORKERS',
-            defaultValue: '1',
-            description: "Pytest xdist workers. Keep '1' for performance suite (shared session-scoped browser login)."
         )
         booleanParam(
             name: 'RUN_ALLURE',
@@ -114,15 +94,13 @@ pipeline {
         stage('Resolve Python') {
             steps {
                 script {
-                    def pythonExeParam = (params.PYTHON_EXE ?: '').trim()
                     runShell(
                         """
                             set -e
                             BASE_PY=""
-                            if [ -n "${pythonExeParam}" ] && [ -x "${pythonExeParam}" ]; then BASE_PY="${pythonExeParam}"; fi
                             if [ -z "\$BASE_PY" ] && command -v python3 >/dev/null 2>&1; then BASE_PY="\$(command -v python3)"; fi
                             if [ -z "\$BASE_PY" ] && command -v python >/dev/null 2>&1; then BASE_PY="\$(command -v python)"; fi
-                            if [ -z "\$BASE_PY" ]; then echo "[ERROR] Python 3.10+ not found. Set PYTHON_EXE parameter."; exit 1; fi
+                            if [ -z "\$BASE_PY" ]; then echo "[ERROR] Python 3.10+ not found on agent PATH."; exit 1; fi
                             echo "[INFO] Using Python: \$BASE_PY"
                             "\$BASE_PY" --version
                             echo "\$BASE_PY" > python_exe.txt
@@ -131,10 +109,9 @@ pipeline {
                             @echo off
                             setlocal EnableDelayedExpansion
                             set "BASE_PY="
-                            if not "${pythonExeParam}"=="" if exist "${pythonExeParam}" set "BASE_PY=${pythonExeParam}"
-                            if not defined BASE_PY for /f "delims=" %%i in ('py -3 -c "import sys; print(sys.executable)" 2^>nul') do set "BASE_PY=%%i"
+                            for /f "delims=" %%i in ('py -3 -c "import sys; print(sys.executable)" 2^>nul') do set "BASE_PY=%%i"
                             if not defined BASE_PY for /f "delims=" %%i in ('where python 2^>nul') do if not defined BASE_PY set "BASE_PY=%%i"
-                            if not defined BASE_PY (echo [ERROR] Python 3.10+ not found. & exit /b 1)
+                            if not defined BASE_PY (echo [ERROR] Python 3.10+ not found on agent PATH. & exit /b 1)
                             echo [INFO] Using Python: !BASE_PY!
                             "!BASE_PY!" --version
                             echo !BASE_PY!> python_exe.txt
@@ -143,30 +120,6 @@ pipeline {
                     )
                     env.RESOLVED_PYTHON = readFile('python_exe.txt').trim()
                     echo "Resolved Python: ${env.RESOLVED_PYTHON}"
-                }
-            }
-        }
-
-        stage('Reset Build History (Optional)') {
-            when {
-                expression { return params.RESET_JOB_BUILD_HISTORY == true }
-            }
-            steps {
-                echo 'Reset Build History is ENABLED but running SAFE mode (no Jenkins internal API usage).'
-                script {
-                    if (fileExists('test-results')) {
-                        runShell('rm -rf test-results || true', 'rmdir /s /q test-results')
-                    }
-                    if (fileExists('allure-results')) {
-                        runShell('rm -rf allure-results || true', 'rmdir /s /q allure-results')
-                    }
-                    if (fileExists('reports')) {
-                        runShell(
-                            'rm -f reports/dakota_chrome_extension_results.xlsx reports/.latest_dakota_search_report.txt || true',
-                            'del /q reports\\dakota_chrome_extension_results.xlsx 2>nul & del /q reports\\.latest_dakota_search_report.txt 2>nul'
-                        )
-                    }
-                    echo 'Workspace history reset completed safely.'
                 }
             }
         }
@@ -245,8 +198,7 @@ pipeline {
                     def effectiveCfg = getEffectiveRunConfig()
                     validateRuntimeParameters(
                         effectiveCfg.testSelectionMode as String,
-                        effectiveCfg.infraRetryCount as String,
-                        params.PARALLEL_WORKERS as String
+                        effectiveCfg.infraRetryCount as String
                     )
                     def selectedTestFiles = resolveSelectedTestFiles(
                         effectiveCfg.testSelectionMode as String,
@@ -272,8 +224,7 @@ pipeline {
                         selectedTestFiles,
                         effectiveCfg.runAllure as boolean,
                         effectiveCfg.enableInfraRetry as boolean,
-                        effectiveCfg.infraRetryCount as String,
-                        params.PARALLEL_WORKERS as String
+                        effectiveCfg.infraRetryCount as String
                     )
                     echo "Pytest command: pytest ${runCmd}"
 
@@ -312,18 +263,14 @@ pipeline {
                     }
 
                     if (effectiveCfg.runAllure && fileExists(env.ALLURE_DIR)) {
-                        def allureArgs = [
+                        allure([
                             includeProperties: false,
                             jdk: '',
                             properties: [],
                             reportBuildPolicy: 'ALWAYS',
                             results: [[path: env.ALLURE_DIR]],
                             reportName: 'Allure Report'
-                        ]
-                        if (params.ALLURE_JENKINS_TOOL?.trim()) {
-                            allureArgs.tool = params.ALLURE_JENKINS_TOOL.trim()
-                        }
-                        allure(allureArgs)
+                        ])
                     } else if (effectiveCfg.runAllure) {
                         echo "Skipping Allure publish: ${env.ALLURE_DIR} directory not found."
                     }
@@ -385,8 +332,7 @@ def buildPytestCommand(
     List selectedTestFiles,
     boolean runAllure,
     boolean enableInfraRetry,
-    String infraRetryCount,
-    String parallelWorkers
+    String infraRetryCount
 ) {
     def allureArg = runAllure ? "--alluredir=${env.ALLURE_DIR}" : ''
     def parts = []
@@ -397,13 +343,6 @@ def buildPytestCommand(
     parts << '--color=no'
     parts << '-o'
     parts << 'console_output_style=progress'
-
-    def workers = (parallelWorkers ?: '1').trim().toLowerCase()
-    if (workers != '1') {
-        echo "WARNING: Parallel workers > 1 may break session-scoped extension login; use with caution."
-        parts << '-n'
-        parts << workers
-    }
 
     if (allureArg) {
         parts << allureArg
@@ -485,7 +424,7 @@ def resolveSelectedTestFiles(String selectionMode, def paramsObj) {
     return resolved
 }
 
-def validateRuntimeParameters(String selectionMode, String infraRetryCount, String parallelWorkers) {
+def validateRuntimeParameters(String selectionMode, String infraRetryCount) {
     def mode = (selectionMode ?: '').trim().toUpperCase()
     if (!(mode in ['ALL_TESTS', 'SMOKE', 'CHECKBOX_SELECTION'])) {
         error("Invalid TEST_SELECTION_MODE='${selectionMode}'. Allowed values: ALL_TESTS, SMOKE, CHECKBOX_SELECTION.")
@@ -494,17 +433,6 @@ def validateRuntimeParameters(String selectionMode, String infraRetryCount, Stri
     def rawRetry = (infraRetryCount ?: '').trim()
     if (!(rawRetry ==~ /^\d+$/)) {
         error("INFRA_RETRY_COUNT must be a non-negative integer, but got '${infraRetryCount}'.")
-    }
-
-    def workers = (parallelWorkers ?: '').trim().toLowerCase()
-    if (workers == 'auto') {
-        return
-    }
-    if (!(workers ==~ /^\d+$/)) {
-        error("PARALLEL_WORKERS must be a non-negative integer or 'auto', but got '${parallelWorkers}'.")
-    }
-    if ((workers as int) < 1) {
-        error("PARALLEL_WORKERS must be >= 1, but got '${parallelWorkers}'.")
     }
 }
 
