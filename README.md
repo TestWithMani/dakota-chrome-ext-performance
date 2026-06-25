@@ -103,7 +103,6 @@ Built for CI/CD with **Jenkins** and local development on Windows.
 ├── utils/
 │   ├── performance_config.py   # Companies, iterations, benchmark thresholds
 │   └── search_report.py        # Excel report generation
-├── credentials.env.example     # Template for local credentials (copy to credentials.env)
 ├── requirements.txt            # Runtime dependencies
 ├── requirements-ci.txt         # CI-only plugins (Allure, HTML, JSON, reruns)
 └── extensions/                 # Extension artifacts (gitignored; created at runtime)
@@ -137,11 +136,7 @@ pip install -r requirements-ci.txt
 
 ### 3. Configure credentials
 
-```powershell
-copy credentials.env.example credentials.env
-```
-
-Edit `credentials.env` with your **Dakota Marketplace** username and password:
+Create `credentials.env` in the project root (gitignored), or set environment variables:
 
 ```env
 DAKOTA_USERNAME=your_portal_email@example.com
@@ -150,7 +145,7 @@ DAKOTA_PASSWORD=your_portal_password
 
 > **Important:** Jenkins UI login credentials are separate from Dakota portal credentials.
 
-Alternatively, export environment variables:
+Or export environment variables:
 
 ```powershell
 $env:DAKOTA_USERNAME = "your_portal_email@example.com"

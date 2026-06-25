@@ -412,7 +412,7 @@ def load_dakota_credentials() -> DakotaCredentials:
     if not username or not password:
         raise RuntimeError(
             "Dakota credentials not found. Set DAKOTA_USERNAME and DAKOTA_PASSWORD "
-            "or create credentials.env from credentials.env.example"
+            "environment variables or create a credentials.env file in the project root."
         )
 
     return DakotaCredentials(username=username, password=password)
