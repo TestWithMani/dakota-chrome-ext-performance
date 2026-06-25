@@ -8,6 +8,10 @@ pipeline {
         timeout(time: 200, unit: 'MINUTES')
     }
 
+    triggers {
+        cron('35 16 * * 4')
+    }
+
     parameters {
         string(
             name: 'DEFAULT_EMAIL',
@@ -66,6 +70,10 @@ pipeline {
                     currentBuild.description = 'Dakota Chrome Extension | Full Test Suite'
                     echo "Repo: https://github.com/TestWithMani/dakota-chrome-ext-performance"
                     echo "Branch: ${env.BRANCH_NAME ?: 'main'} | Commit: ${shortCommit}"
+                    def effectiveCfg = getEffectiveRunConfig()
+                    if (effectiveCfg.scheduledBuild) {
+                        echo 'Scheduled run detected: applying Thursday 4:33 PM email preset.'
+                    }
                 }
             }
         }
@@ -261,20 +269,32 @@ pipeline {
     }
 }
 
+def isScheduledBuild() {
+    try {
+        def timerCauses = currentBuild?.getBuildCauses('hudson.triggers.TimerTrigger$TimerTriggerCause') ?: []
+        if (!timerCauses.isEmpty()) {
+            return true
+        }
+        def genericCauses = currentBuild?.getBuildCauses() ?: []
+        return genericCauses.any { cause ->
+            def cls = cause?._class ?: ''
+            return cls.contains('TimerTriggerCause')
+        }
+    } catch (Exception ignored) {
+        return false
+    }
+}
+
 def getEffectiveRunConfig() {
-    def weeklyJobName = 'Dakota-Chrome-Extension-Performance-Weekly'
-    def isWeeklyJob = (env.JOB_NAME ?: '') == weeklyJobName
-
-    def defaultEmail = isWeeklyJob
-        ? 'usman.arshad@rolustech.com'
-        : (params.DEFAULT_EMAIL as String)
-    def additionalEmails = isWeeklyJob
-        ? 'omer.shafiq@rolustech.net,imad.ali@rolustech.com,schal.hasnain@rolustech.com,faseeh.ahmad@rolustech.com'
-        : (params.ADDITIONAL_EMAILS as String)
-
+    def scheduled = isScheduledBuild()
     return [
-        additionalEmails : additionalEmails,
-        defaultEmail     : defaultEmail,
+        scheduledBuild   : scheduled,
+        additionalEmails : scheduled
+            ? 'omer.shafiq@rolustech.net,imad.ali@rolustech.com,schal.hasnain@rolustech.com,faseeh.ahmad@rolustech.com'
+            : (params.ADDITIONAL_EMAILS as String),
+        defaultEmail     : scheduled
+            ? 'usman.arshad@rolustech.com'
+            : (params.DEFAULT_EMAIL as String),
         infraRetryCount  : params.INFRA_RETRY_COUNT as String,
         runAllure        : params.RUN_ALLURE as boolean,
         sendEmail        : params.SEND_EMAIL as boolean,

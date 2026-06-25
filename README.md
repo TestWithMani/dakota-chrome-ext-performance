@@ -295,17 +295,15 @@ Pipeline is loaded from this repo via SCM:
 | **Script path** | `Jenkinsfile` |
 | **Job name** | `Dakota-Chrome-Extension-Performance` |
 
-A second job, **`Dakota-Chrome-Extension-Performance-Weekly`**, runs the same pipeline on a schedule:
+The same job runs on a **weekly schedule** defined in `Jenkinsfile` (`triggers { cron('33 16 * * 4') }` — Thursday 4:33 PM, Jenkins server timezone). Timer-triggered builds automatically use a different email preset:
 
-| Setting | Value |
-|---------|-------|
-| **Schedule** | Every Thursday at **16:33** (4:33 PM, Jenkins server timezone) |
-| **Cron** | `33 16 * * 4` |
+| Scheduled run | Value |
+|---------------|-------|
 | **Default email** | `usman.arshad@rolustech.com` |
 | **Additional emails** | `omer.shafiq@rolustech.net`, `imad.ali@rolustech.com`, `schal.hasnain@rolustech.com`, `faseeh.ahmad@rolustech.com` |
-| **Other parameters** | Same defaults as the main job (`INFRA_RETRY_COUNT=3`, Allure on, email on) |
+| **Other parameters** | Same as manual builds (`draftcrmdev@rolustech.com` default only applies to manual runs) |
 
-Both jobs are created/updated by `jenkins_setup.py`.
+Manual builds keep the parameter defaults (`DEFAULT_EMAIL`, `ADDITIONAL_EMAILS`, etc.).
 
 ### Provision the job (first time)
 

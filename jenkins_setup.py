@@ -4,7 +4,8 @@ Configure Jenkins for Dakota Chrome Extension Performance (SCM pipeline).
 Creates/updates:
   - Credential dakota-portal-creds
   - Pipeline job Dakota-Chrome-Extension-Performance from GitHub SCM
-  - Scheduled job Dakota-Chrome-Extension-Performance-Weekly (Thursdays 16:33)
+
+The weekly schedule is defined in Jenkinsfile via triggers { cron(...) }.
 
 Usage:
   py -3.13 jenkins_setup.py
@@ -28,8 +29,7 @@ GITHUB_REPO = "https://github.com/TestWithMani/dakota-chrome-ext-performance.git
 GITHUB_BRANCH = "main"
 
 JOB_NAME = "Dakota-Chrome-Extension-Performance"
-SCHEDULED_JOB_NAME = "Dakota-Chrome-Extension-Performance-Weekly"
-CRON_SCHEDULE = "33 16 * * 4"  # Thursday 16:33 (Jenkins server timezone)
+LEGACY_SCHEDULED_JOB_NAME = "Dakota-Chrome-Extension-Performance-Weekly"
 CREDENTIAL_ID = "dakota-portal-creds"
 PORTAL_USERNAME = "test_automation@dakota.com"
 PORTAL_PASSWORD = "@#$%1234uatest%%"
@@ -115,14 +115,10 @@ def job_exists(s: requests.Session, name: str) -> bool:
     return s.get(f"{JENKINS_URL}/job/{name}/api/json", timeout=30).status_code == 200
 
 
-def build_scm_job_config_xml(
-    job_name: str,
-    description: str,
-    triggers_xml: str = "<triggers/>",
-) -> str:
+def build_scm_job_config_xml() -> str:
     return f"""<?xml version='1.1' encoding='UTF-8'?>
 <flow-definition plugin="workflow-job">
-  <description>{xmlutils.escape(description)}</description>
+  <description>Dakota Chrome Extension performance — Selenium headless, Excel, Allure, email</description>
   <keepDependencies>false</keepDependencies>
   <properties/>
   <definition class="org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition" plugin="workflow-cps">
@@ -145,28 +141,20 @@ def build_scm_job_config_xml(
     <scriptPath>Jenkinsfile</scriptPath>
     <lightweight>false</lightweight>
   </definition>
-  {triggers_xml}
+  <triggers/>
   <disabled>false</disabled>
 </flow-definition>
 """
 
 
-def build_scheduled_job_triggers_xml() -> str:
-    return f"""<triggers>
-  <hudson.triggers.TimerTrigger>
-    <spec>{CRON_SCHEDULE}</spec>
-  </hudson.triggers.TimerTrigger>
-</triggers>"""
-
-
-def create_or_update_job(s: requests.Session, job_name: str, description: str, triggers_xml: str) -> None:
-    config_xml = build_scm_job_config_xml(job_name, description, triggers_xml)
+def create_or_update_job(s: requests.Session) -> None:
+    config_xml = build_scm_job_config_xml()
     headers = crumb_headers(s)
     headers["Content-Type"] = "application/xml; charset=UTF-8"
 
-    if job_exists(s, job_name):
+    if job_exists(s, JOB_NAME):
         resp = s.post(
-            f"{JENKINS_URL}/job/{job_name}/config.xml",
+            f"{JENKINS_URL}/job/{JOB_NAME}/config.xml",
             headers=headers,
             data=config_xml.encode("utf-8"),
             timeout=120,
@@ -175,7 +163,7 @@ def create_or_update_job(s: requests.Session, job_name: str, description: str, t
     else:
         resp = s.post(
             f"{JENKINS_URL}/createItem",
-            params={"name": job_name},
+            params={"name": JOB_NAME},
             headers=headers,
             data=config_xml.encode("utf-8"),
             timeout=120,
@@ -184,25 +172,27 @@ def create_or_update_job(s: requests.Session, job_name: str, description: str, t
 
     if resp.status_code not in (200, 201, 302):
         raise RuntimeError(f"{action} job failed HTTP {resp.status_code}: {resp.text[:1500]}")
-    print(f"[OK] {action} SCM pipeline job: {job_name}")
+    print(f"[OK] {action} SCM pipeline job: {JOB_NAME}")
     print(f"     Repo: {GITHUB_REPO}")
     print(f"     Branch: {GITHUB_BRANCH}")
+    print("     Schedule: Jenkinsfile triggers { cron('33 16 * * 4') } (Thursday 16:33)")
 
 
-def create_or_update_jobs(s: requests.Session) -> None:
-    create_or_update_job(
-        s,
-        JOB_NAME,
-        "Dakota Chrome Extension performance — Selenium headless, Excel, Allure, email",
-        "<triggers/>",
+def delete_legacy_scheduled_job(s: requests.Session) -> None:
+    if not job_exists(s, LEGACY_SCHEDULED_JOB_NAME):
+        return
+
+    headers = crumb_headers(s)
+    resp = s.post(
+        f"{JENKINS_URL}/job/{LEGACY_SCHEDULED_JOB_NAME}/doDelete",
+        headers=headers,
+        timeout=60,
     )
-    create_or_update_job(
-        s,
-        SCHEDULED_JOB_NAME,
-        "Weekly scheduled Dakota Chrome Extension performance run (Thursdays 16:33 server time)",
-        build_scheduled_job_triggers_xml(),
-    )
-    print(f"     Weekly schedule: {CRON_SCHEDULE} (Thursday 16:33, Jenkins server timezone)")
+    if resp.status_code not in (200, 201, 302):
+        raise RuntimeError(
+            f"Delete legacy job failed HTTP {resp.status_code}: {resp.text[:1000]}"
+        )
+    print(f"[OK] Removed legacy scheduled job: {LEGACY_SCHEDULED_JOB_NAME}")
 
 
 def trigger_build(s: requests.Session) -> None:
@@ -224,13 +214,13 @@ def main() -> int:
     print("[OK] Jenkins API login successful")
 
     create_or_update_portal_credential(s)
-    create_or_update_jobs(s)
+    create_or_update_job(s)
+    delete_legacy_scheduled_job(s)
 
     if args.trigger_build:
         trigger_build(s)
 
     print(f"\nJob URL: {JENKINS_URL}/job/{JOB_NAME}/")
-    print(f"Weekly job URL: {JENKINS_URL}/job/{SCHEDULED_JOB_NAME}/")
     return 0
 
 
