@@ -324,7 +324,7 @@ Create a **Username with password** credential:
 
 | Parameter | Description |
 |-----------|-------------|
-| `DEFAULT_EMAIL` | Primary report recipient (default: `usman.arshad@rolustech.com`) |
+| `DEFAULT_EMAIL` | Primary report recipient (default: `draftcrmdev@rolustech.com`) |
 | `ADDITIONAL_EMAILS` | Comma-separated extra recipients |
 | `DAKOTA_CREDENTIALS_ID` | Jenkins credential ID for portal login |
 | `INFRA_RETRY_COUNT` | Retry flaky Selenium failures (always enabled; set `0` to disable) |

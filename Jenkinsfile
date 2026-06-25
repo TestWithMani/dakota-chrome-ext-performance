@@ -11,12 +11,12 @@ pipeline {
     parameters {
         string(
             name: 'DEFAULT_EMAIL',
-            defaultValue: 'usman.arshad@rolustech.com',
+            defaultValue: 'draftcrmdev@rolustech.com',
             description: 'Primary recipient for pipeline report emails.'
         )
         string(
             name: 'ADDITIONAL_EMAILS',
-            defaultValue: 'omer.shafiq@rolustech.com',
+            defaultValue: '',
             description: 'Additional email recipients (comma-separated list).'
         )
         string(
