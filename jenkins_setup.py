@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import xml.sax.saxutils as xmlutils
 
 import requests
 
@@ -27,8 +28,8 @@ GITHUB_BRANCH = "main"
 
 JOB_NAME = "Dakota-Chrome-Extension-Performance"
 CREDENTIAL_ID = "dakota-portal-creds"
-PORTAL_USERNAME = "demo.development@dakota.com.unified"
-PORTAL_PASSWORD = "Rolus334"
+PORTAL_USERNAME = "test_automation@dakota.com"
+PORTAL_PASSWORD = "@#$%1234uatest%%"
 
 
 def session() -> requests.Session:
@@ -55,9 +56,33 @@ def credential_exists(s: requests.Session, cred_id: str) -> bool:
     return any(c.get("id") == cred_id for c in resp.json().get("credentials", []))
 
 
-def create_portal_credential(s: requests.Session) -> None:
+def build_portal_credential_config_xml() -> str:
+    return f"""<?xml version='1.1' encoding='UTF-8'?>
+<com.cloudbees.plugins.credentials.impl.UsernamePasswordCredentialsImpl>
+  <scope>GLOBAL</scope>
+  <id>{CREDENTIAL_ID}</id>
+  <description>Dakota Marketplace portal login for Chrome extension performance tests</description>
+  <username>{xmlutils.escape(PORTAL_USERNAME)}</username>
+  <password>{xmlutils.escape(PORTAL_PASSWORD)}</password>
+</com.cloudbees.plugins.credentials.impl.UsernamePasswordCredentialsImpl>
+"""
+
+
+def create_or_update_portal_credential(s: requests.Session) -> None:
+    headers = crumb_headers(s)
     if credential_exists(s, CREDENTIAL_ID):
-        print(f"[OK] Credential already exists: {CREDENTIAL_ID}")
+        headers["Content-Type"] = "application/xml; charset=UTF-8"
+        resp = s.post(
+            f"{JENKINS_URL}/credentials/store/system/domain/_/credential/{CREDENTIAL_ID}/config.xml",
+            headers=headers,
+            data=build_portal_credential_config_xml().encode("utf-8"),
+            timeout=60,
+        )
+        if resp.status_code not in (200, 201, 302):
+            raise RuntimeError(
+                f"Update credential failed HTTP {resp.status_code}: {resp.text[:1000]}"
+            )
+        print(f"[OK] Updated credential: {CREDENTIAL_ID} ({PORTAL_USERNAME})")
         return
 
     cred_json = {
@@ -167,7 +192,7 @@ def main() -> int:
     s.get(f"{JENKINS_URL}/api/json", timeout=30).raise_for_status()
     print("[OK] Jenkins API login successful")
 
-    create_portal_credential(s)
+    create_or_update_portal_credential(s)
     create_or_update_job(s)
 
     if args.trigger_build:
