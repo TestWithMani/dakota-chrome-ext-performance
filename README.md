@@ -231,8 +231,8 @@ pytest tests/test_dakota_login.py::test_dakota_login_step_by_step -v --keep-open
 | Property | Value |
 |----------|-------|
 | **Path** | `reports/dakota_chrome_extension_results.xlsx` |
-| **Columns** | Row Type, Test Case, Tab, Sample #, Time (s), Min, Max, Benchmark, Result, Browser, Recorded At, Platform |
-| **Rows** | Iteration rows per company/sample, plus **one Run summary per test** (5 summaries for full suite) |
+| **Columns** | Row Type, Test Case, Tab (company), Sample #, Time (s), Min, Max, Benchmark, Result, Browser, Recorded At, Platform |
+| **Rows** | 3 iterations per company + 1 Run summary per company. Full suite: **5 tests × 2 companies = 10 run summaries** |
 | **Pass/fail** | Each sample is compared to thresholds in `utils/performance_config.py` |
 
 ### Allure (local)

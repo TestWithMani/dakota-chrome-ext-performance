@@ -275,6 +275,7 @@ class SearchReportMetadata:
 @dataclass(frozen=True)
 class SearchSummary:
     test_case: str
+    company: str
     average_time_s: float
     min_time_s: float
     max_time_s: float
@@ -308,18 +309,19 @@ def build_iteration_row(
     return _iteration_row(test_case, company, sample_number, elapsed_s, metadata)
 
 
-def build_test_case_summary_row(
+def build_company_summary_row(
     test_case: str,
-    companies: tuple[str, ...] | list[str],
+    company: str,
     timings: list[float],
     benchmark_s: float,
     metadata: SearchReportMetadata,
 ) -> tuple[dict[str, str], SearchSummary]:
-    companies_label = ", ".join(companies)
+    """One run summary for a single company within a test case."""
 
     if not timings:
         summary = SearchSummary(
             test_case=test_case,
+            company=company,
             average_time_s=0.0,
             min_time_s=0.0,
             max_time_s=0.0,
@@ -328,7 +330,7 @@ def build_test_case_summary_row(
         )
         row = _run_summary_row(
             test_case,
-            companies_label,
+            company,
             TIMING_NOT_APPLICABLE,
             TIMING_NOT_APPLICABLE,
             TIMING_NOT_APPLICABLE,
@@ -344,6 +346,7 @@ def build_test_case_summary_row(
     result = "PASS" if average_time_s <= benchmark_s else "FAIL"
     summary = SearchSummary(
         test_case=test_case,
+        company=company,
         average_time_s=average_time_s,
         min_time_s=min_time_s,
         max_time_s=max_time_s,
@@ -352,7 +355,7 @@ def build_test_case_summary_row(
     )
     row = _run_summary_row(
         test_case,
-        companies_label,
+        company,
         average_time_s,
         min_time_s,
         max_time_s,
@@ -434,9 +437,9 @@ def append_test_case_rows(
     rows: list[dict[str, str]],
 ) -> Path:
     """
-    Append iteration rows plus one run summary for a completed test case.
+    Append rows for one test case: iteration rows and one run summary per company.
 
-    Each performance test contributes many iteration rows and exactly one run summary.
+    Full suite: 5 tests x 2 companies = 10 run summary rows.
     """
     if not rows:
         return get_performance_report_path()
