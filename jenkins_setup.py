@@ -4,7 +4,7 @@ Configure Jenkins for Dakota Chrome Extension Performance (SCM pipeline).
 Creates/updates:
   - Credential dakota-portal-creds
   - Pipeline job Dakota-Chrome-Extension-Performance from GitHub SCM
-  - Scheduled job Dakota-Chrome-Extension-Performance-Weekly (Mondays 14:00)
+  - Scheduled job Dakota-Chrome-Extension-Performance-Weekly (Thursdays 16:33)
 
 Usage:
   py -3.13 jenkins_setup.py
@@ -29,7 +29,7 @@ GITHUB_BRANCH = "main"
 
 JOB_NAME = "Dakota-Chrome-Extension-Performance"
 SCHEDULED_JOB_NAME = "Dakota-Chrome-Extension-Performance-Weekly"
-CRON_SCHEDULE = "0 14 * * 1"  # Monday 14:00 (Jenkins server timezone)
+CRON_SCHEDULE = "33 16 * * 4"  # Thursday 16:33 (Jenkins server timezone)
 CREDENTIAL_ID = "dakota-portal-creds"
 PORTAL_USERNAME = "test_automation@dakota.com"
 PORTAL_PASSWORD = "@#$%1234uatest%%"
@@ -199,10 +199,10 @@ def create_or_update_jobs(s: requests.Session) -> None:
     create_or_update_job(
         s,
         SCHEDULED_JOB_NAME,
-        "Weekly scheduled Dakota Chrome Extension performance run (Mondays 14:00 server time)",
+        "Weekly scheduled Dakota Chrome Extension performance run (Thursdays 16:33 server time)",
         build_scheduled_job_triggers_xml(),
     )
-    print(f"     Weekly schedule: {CRON_SCHEDULE} (Monday 14:00, Jenkins server timezone)")
+    print(f"     Weekly schedule: {CRON_SCHEDULE} (Thursday 16:33, Jenkins server timezone)")
 
 
 def trigger_build(s: requests.Session) -> None:

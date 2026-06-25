@@ -299,8 +299,8 @@ A second job, **`Dakota-Chrome-Extension-Performance-Weekly`**, runs the same pi
 
 | Setting | Value |
 |---------|-------|
-| **Schedule** | Every Monday at **14:00** (Jenkins server timezone) |
-| **Cron** | `0 14 * * 1` |
+| **Schedule** | Every Thursday at **16:33** (4:33 PM, Jenkins server timezone) |
+| **Cron** | `33 16 * * 4` |
 | **Default email** | `usman.arshad@rolustech.com` |
 | **Additional emails** | `omer.shafiq@rolustech.net`, `imad.ali@rolustech.com`, `schal.hasnain@rolustech.com`, `faseeh.ahmad@rolustech.com` |
 | **Other parameters** | Same defaults as the main job (`INFRA_RETRY_COUNT=3`, Allure on, email on) |
