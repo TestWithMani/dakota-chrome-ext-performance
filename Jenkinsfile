@@ -745,7 +745,6 @@ def sendEmailNotification(String buildStatus, String defaultEmail, String additi
     def excelRelPath = prepareExcelArtifactPath()
     def excelExists = excelRelPath ? fileExists(excelRelPath) : false
     def allureUrl = "${jobUrl}allure"
-    def pytestHtmlUrl = "${jobUrl}Pytest_20HTML_20Report/"
     def durationString = (currentBuild.durationString ?: 'N/A').replace(' and counting', '')
     def passRate = stats.total > 0 ? ((stats.passed * 100) / stats.total) as int : 0
     def cleanedFailedTests = failedTests.collect { name ->
@@ -768,7 +767,7 @@ def sendEmailNotification(String buildStatus, String defaultEmail, String additi
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Dakota Performance Report</title>
+  <title>Dakota Chrome Extension Performance Report</title>
 </head>
 <body style="margin:0;padding:0;background:linear-gradient(140deg,#e0ecff 0%,#efe7ff 45%,#fff6e5 100%);font-family:'Segoe UI',Roboto,Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0">
@@ -778,7 +777,6 @@ def sendEmailNotification(String buildStatus, String defaultEmail, String additi
           <tr>
             <td style="padding:26px 30px;background:linear-gradient(135deg,#0f172a 0%,#1e40af 52%,#7c3aed 100%);color:#ffffff;">
               <h2 style="margin:0;font-size:30px;letter-spacing:0.2px;">Dakota Chrome Extension Performance</h2>
-              <p style="margin:8px 0 0;opacity:0.9;font-size:13px;">Selenium headless • Excel timings • Allure report</p>
             </td>
           </tr>
 
@@ -815,31 +813,19 @@ def sendEmailNotification(String buildStatus, String defaultEmail, String additi
               <h3 style="margin:0 0 12px;color:#0f172a;font-size:17px;">Report Access</h3>
               <table width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;color:#1e293b;border:1px solid #c4b5fd;border-radius:10px;overflow:hidden;background:linear-gradient(180deg,#faf5ff 0%,#f3f0ff 100%);">
                 <tr>
-                  <td width="32%" style="padding:10px 12px;background:linear-gradient(180deg,#ede9fe 0%,#ddd6fe 100%);border-bottom:1px solid #e9d5ff;"><strong>Jenkins Build</strong></td>
-                  <td style="padding:10px 12px;border-bottom:1px solid #e9d5ff;">
-                    <a style="color:#6d28d9;text-decoration:underline;font-weight:700;" href="${jobUrl}">Open Build #${env.BUILD_NUMBER ?: ''}</a>
-                  </td>
-                </tr>
-                <tr>
-                  <td width="32%" style="padding:10px 12px;background:linear-gradient(180deg,#ede9fe 0%,#ddd6fe 100%);border-bottom:1px solid #e9d5ff;"><strong>Allure Report</strong></td>
-                  <td style="padding:10px 12px;border-bottom:1px solid #e9d5ff;">
+                  <td width="32%" style="padding:10px 12px;background:linear-gradient(180deg,#ede9fe 0%,#ddd6fe 100%);"><strong>Allure Report</strong></td>
+                  <td style="padding:10px 12px;">
                     <a style="color:#6d28d9;text-decoration:underline;font-weight:700;" href="${allureUrl}">Open Allure Report</a>
                   </td>
                 </tr>
-                <tr>
-                  <td width="32%" style="padding:10px 12px;background:linear-gradient(180deg,#ede9fe 0%,#ddd6fe 100%);"><strong>Pytest HTML</strong></td>
-                  <td style="padding:10px 12px;">
-                    <a style="color:#6d28d9;text-decoration:underline;font-weight:700;" href="${pytestHtmlUrl}">Open Pytest HTML Report</a>
-                  </td>
-                </tr>
               </table>
-              <p style="margin:12px 0 0;color:#64748b;font-size:12px;">Excel file <strong>dakota_chrome_extension_results.xlsx</strong> is attached to this email when the performance suite runs.</p>
+              <p style="margin:12px 0 0;color:#64748b;font-size:12px;">Please see the attached Excel performance sheet for detailed run metrics.</p>
             </td>
           </tr>
 
           <tr>
             <td style="padding:13px 30px;background:#0f172a;color:#cbd5e1;font-size:12px;">
-              Jenkins CI/CD • Dakota Chrome Extension Performance • http://110.93.205.18:8080/
+              Jenkins CI/CD • Dakota Chrome Extension Performance Framework
             </td>
           </tr>
         </table>
