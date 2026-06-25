@@ -1,0 +1,5 @@
+selenium>=4.35.0
+pytest>=7.4.0
+webdriver-manager>=4.0.0
+requests>=2.31.0
+openpyxl>=3.1.0

@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.chrome-demo-profile/
+venv/
+.venv/
+.venv-jenkins/
+
+# Secrets
+credentials.env
+.env
+
+# Local Chrome profiles
+.chrome-demo-profile/
+.pw-run-profile/
+
+# Downloaded extension (re-created by download_extension.py on CI)
+extensions/dakota.crx
+extensions/dakota/
+
+# Test outputs
+reports/
+allure-results/
+test-results/
+dakota-ext-performance-source.zip

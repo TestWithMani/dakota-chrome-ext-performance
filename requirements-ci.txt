@@ -1,0 +1,5 @@
+# CI-only dependencies (installed by Jenkinsfile in addition to requirements.txt)
+pytest-html>=4.0.0
+pytest-json-report>=1.5.0
+allure-pytest>=2.13.0
+pytest-rerunfailures>=14.0
