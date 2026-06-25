@@ -23,11 +23,11 @@ PERFORMANCE_REPORT_TEST_NAMES = frozenset({
 })
 
 TIMING_NOT_APPLICABLE = "-"
+ROW_TYPE_ITERATION = "Iteration"
 ROW_TYPE_RUN_SUMMARY = "Run summary"
 REPORT_FILE_SUFFIX = ".xlsx"
 WORKSHEET_TITLE = "Results"
 
-# One Excel row per performance test case (matches the five pytest files).
 PERFORMANCE_TEST_CASE_LABELS = {
     "company_search": "Company Search Time",
     "company_detail": "Company Detail Loading Time",
@@ -39,8 +39,8 @@ PERFORMANCE_TEST_CASE_LABELS = {
 REPORT_COLUMNS = (
     "Row Type",
     "Test Case",
-    "Companies",
-    "Samples",
+    "Tab",
+    "Sample #",
     "Time (s)",
     "Min (s)",
     "Max (s)",
@@ -53,21 +53,23 @@ REPORT_COLUMNS = (
 
 _RESULT_COLUMN_INDEX = REPORT_COLUMNS.index("Result") + 1
 _ROW_TYPE_COLUMN_INDEX = REPORT_COLUMNS.index("Row Type") + 1
-_TEST_CASE_COLUMN_INDEX = REPORT_COLUMNS.index("Test Case") + 1
+_TAB_COLUMN_INDEX = REPORT_COLUMNS.index("Tab") + 1
 
 _NUMERIC_COLUMNS = frozenset({
-    "Samples",
+    "Sample #",
     "Time (s)",
     "Min (s)",
     "Max (s)",
     "Performance Benchmark (s)",
 })
-_INTEGER_COLUMNS = frozenset({"Samples"})
+_INTEGER_COLUMNS = frozenset({"Sample #"})
 _DECIMAL_NUMBER_FORMAT = "0.000"
 
 _HEADER_FILL = PatternFill(fill_type="solid", fgColor="1F4E79")
 _HEADER_FONT = Font(bold=True, color="FFFFFF", size=11)
 _SUMMARY_ROW_FILL = PatternFill(fill_type="solid", fgColor="D6DCE4")
+_ITERATION_FILL_A = PatternFill(fill_type="solid", fgColor="E2EFDA")
+_ITERATION_FILL_B = PatternFill(fill_type="solid", fgColor="DDEBF7")
 _RESULT_PASS_FILL = PatternFill(fill_type="solid", fgColor="C6EFCE")
 _RESULT_FAIL_FILL = PatternFill(fill_type="solid", fgColor="FFC7CE")
 _RESULT_NA_FILL = PatternFill(fill_type="solid", fgColor="FFEB9C")
@@ -106,6 +108,10 @@ def _ensure_xlsx_report_path(report_path: Path) -> Path:
     return report_path
 
 
+def _is_run_summary_row(row_type: str) -> bool:
+    return row_type.strip() == ROW_TYPE_RUN_SUMMARY
+
+
 def _metadata_columns(metadata: "SearchReportMetadata") -> dict[str, str]:
     return {
         "Browser": metadata.browser,
@@ -118,6 +124,54 @@ def _fmt_timing(value: float | str) -> str:
     if isinstance(value, (int, float)):
         return f"{value:.3f}"
     return str(value)
+
+
+def _iteration_row(
+    test_case: str,
+    tab: str,
+    sample_number: int,
+    elapsed_s: float | str,
+    metadata: "SearchReportMetadata",
+) -> dict[str, str]:
+    time_value = (
+        f"{elapsed_s:.3f}" if isinstance(elapsed_s, (int, float)) else str(elapsed_s)
+    )
+    return {
+        "Row Type": ROW_TYPE_ITERATION,
+        "Test Case": test_case,
+        "Tab": tab,
+        "Sample #": str(sample_number),
+        "Time (s)": time_value,
+        "Min (s)": "",
+        "Max (s)": "",
+        "Performance Benchmark (s)": "",
+        "Result": "",
+        **_metadata_columns(metadata),
+    }
+
+
+def _run_summary_row(
+    test_case: str,
+    tab: str,
+    average_s: float | str,
+    min_s: float | str,
+    max_s: float | str,
+    benchmark_s: float,
+    result: str,
+    metadata: "SearchReportMetadata",
+) -> dict[str, str]:
+    return {
+        "Row Type": ROW_TYPE_RUN_SUMMARY,
+        "Test Case": test_case,
+        "Tab": tab,
+        "Sample #": "",
+        "Time (s)": _fmt_timing(average_s),
+        "Min (s)": _fmt_timing(min_s),
+        "Max (s)": _fmt_timing(max_s),
+        "Performance Benchmark (s)": f"{benchmark_s:.3f}",
+        "Result": result,
+        **_metadata_columns(metadata),
+    }
 
 
 def _summary_row_font(*, result: str | None = None) -> Font:
@@ -158,23 +212,43 @@ def _apply_report_formatting(worksheet) -> None:
         header_cell.alignment = _CENTER
         header_cell.border = _THIN_BORDER
 
+    last_tab = None
+    use_fill_a = True
+
     for row_index in range(2, worksheet.max_row + 1):
+        row_type = str(worksheet.cell(row=row_index, column=_ROW_TYPE_COLUMN_INDEX).value or "")
+        is_summary = _is_run_summary_row(row_type)
+        tab_value = str(worksheet.cell(row=row_index, column=_TAB_COLUMN_INDEX).value or "")
+
+        if not is_summary and tab_value and tab_value != last_tab:
+            if last_tab is not None:
+                use_fill_a = not use_fill_a
+            last_tab = tab_value
+        elif is_summary:
+            last_tab = None
+
         for column_index in range(1, max_col + 1):
             cell = worksheet.cell(row=row_index, column=column_index)
             cell.border = _THIN_BORDER
-            cell.fill = _SUMMARY_ROW_FILL
-            if column_index == _RESULT_COLUMN_INDEX:
-                result = str(cell.value or "")
-                cell.font = _summary_row_font(result=result)
-                if result.upper() == "PASS":
-                    cell.fill = _RESULT_PASS_FILL
-                elif result.upper() == "FAIL":
-                    cell.fill = _RESULT_FAIL_FILL
-                elif result.upper() == "N/A":
-                    cell.fill = _RESULT_NA_FILL
+
+            if is_summary:
+                cell.fill = _SUMMARY_ROW_FILL
+                if column_index == _RESULT_COLUMN_INDEX:
+                    result = str(cell.value or "")
+                    cell.font = _summary_row_font(result=result)
+                    if result.upper() == "PASS":
+                        cell.fill = _RESULT_PASS_FILL
+                    elif result.upper() == "FAIL":
+                        cell.fill = _RESULT_FAIL_FILL
+                    elif result.upper() == "N/A":
+                        cell.fill = _RESULT_NA_FILL
+                else:
+                    cell.font = _summary_row_font()
+                cell.alignment = _CENTER if column_index in numeric_col_indexes else _LEFT
             else:
-                cell.font = _summary_row_font()
-            cell.alignment = _CENTER if column_index in numeric_col_indexes else _LEFT
+                cell.fill = _ITERATION_FILL_A if use_fill_a else _ITERATION_FILL_B
+                cell.font = Font(size=10)
+                cell.alignment = _CENTER if column_index in numeric_col_indexes else _LEFT
 
     if worksheet.max_row >= 1:
         worksheet.freeze_panes = "A2"
@@ -224,6 +298,16 @@ def get_search_report_metadata(driver: webdriver.Chrome | None = None) -> Search
     )
 
 
+def build_iteration_row(
+    test_case: str,
+    company: str,
+    sample_number: int,
+    elapsed_s: float | str,
+    metadata: SearchReportMetadata,
+) -> dict[str, str]:
+    return _iteration_row(test_case, company, sample_number, elapsed_s, metadata)
+
+
 def build_test_case_summary_row(
     test_case: str,
     companies: tuple[str, ...] | list[str],
@@ -242,18 +326,16 @@ def build_test_case_summary_row(
             benchmark_s=benchmark_s,
             result="N/A",
         )
-        row = {
-            "Row Type": ROW_TYPE_RUN_SUMMARY,
-            "Test Case": test_case,
-            "Companies": companies_label,
-            "Samples": "0",
-            "Time (s)": TIMING_NOT_APPLICABLE,
-            "Min (s)": TIMING_NOT_APPLICABLE,
-            "Max (s)": TIMING_NOT_APPLICABLE,
-            "Performance Benchmark (s)": f"{benchmark_s:.3f}",
-            "Result": "N/A",
-            **_metadata_columns(metadata),
-        }
+        row = _run_summary_row(
+            test_case,
+            companies_label,
+            TIMING_NOT_APPLICABLE,
+            TIMING_NOT_APPLICABLE,
+            TIMING_NOT_APPLICABLE,
+            benchmark_s,
+            "N/A",
+            metadata,
+        )
         return row, summary
 
     average_time_s = sum(timings) / len(timings)
@@ -268,18 +350,16 @@ def build_test_case_summary_row(
         benchmark_s=benchmark_s,
         result=result,
     )
-    row = {
-        "Row Type": ROW_TYPE_RUN_SUMMARY,
-        "Test Case": test_case,
-        "Companies": companies_label,
-        "Samples": str(len(timings)),
-        "Time (s)": _fmt_timing(average_time_s),
-        "Min (s)": _fmt_timing(min_time_s),
-        "Max (s)": _fmt_timing(max_time_s),
-        "Performance Benchmark (s)": f"{benchmark_s:.3f}",
-        "Result": result,
-        **_metadata_columns(metadata),
-    }
+    row = _run_summary_row(
+        test_case,
+        companies_label,
+        average_time_s,
+        min_time_s,
+        max_time_s,
+        benchmark_s,
+        result,
+        metadata,
+    )
     return row, summary
 
 
@@ -349,11 +429,18 @@ def read_latest_search_report_path() -> Path | None:
     return xlsx_path if xlsx_path.is_file() else None
 
 
-def append_test_case_result(
+def append_test_case_rows(
     report_path: Path | None,
-    row: dict[str, str],
+    rows: list[dict[str, str]],
 ) -> Path:
-    """Append exactly one summary row for a completed performance test case."""
+    """
+    Append iteration rows plus one run summary for a completed test case.
+
+    Each performance test contributes many iteration rows and exactly one run summary.
+    """
+    if not rows:
+        return get_performance_report_path()
+
     if report_path is None:
         report_path = get_performance_report_path()
     report_path = _ensure_xlsx_report_path(report_path)
@@ -362,23 +449,7 @@ def append_test_case_result(
 
     workbook = load_workbook(report_path)
     worksheet = workbook.active
-    test_case = row.get("Test Case", "").strip()
-    if test_case:
-        for row_index in range(2, worksheet.max_row + 1):
-            existing = str(worksheet.cell(row=row_index, column=_TEST_CASE_COLUMN_INDEX).value or "").strip()
-            if existing == test_case:
-                for column_index, column_name in enumerate(REPORT_COLUMNS, start=1):
-                    raw = row.get(column_name, "")
-                    value = _coerce_cell_value(column_name, raw if raw != "" else None)
-                    cell = worksheet.cell(row=row_index, column=column_index, value=value)
-                    if isinstance(value, float):
-                        cell.number_format = _DECIMAL_NUMBER_FORMAT
-                _apply_report_formatting(worksheet)
-                _autosize_worksheet_columns(worksheet)
-                workbook.save(report_path)
-                return report_path
-
-    _write_rows_to_worksheet(worksheet, [row], start_row=worksheet.max_row + 1)
+    _write_rows_to_worksheet(worksheet, rows, start_row=worksheet.max_row + 1)
     _apply_report_formatting(worksheet)
     _autosize_worksheet_columns(worksheet)
     workbook.save(report_path)

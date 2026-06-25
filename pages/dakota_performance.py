@@ -26,7 +26,9 @@ from utils.performance_config import profile_tab_for_company_type
 from utils.search_report import (
     PERFORMANCE_TEST_CASE_LABELS,
     SearchSummary,
-    append_test_case_result,
+    TIMING_NOT_APPLICABLE,
+    append_test_case_rows,
+    build_iteration_row,
     build_test_case_summary_row,
     get_performance_report_path,
     get_search_report_metadata,
@@ -329,40 +331,55 @@ class DakotaPerformance:
             open_dakota_sidebar(self.driver)
 
     # ------------------------------------------------------------------
-    # Benchmark runners (one Excel row per test case)
+    # Benchmark runners (iteration rows + one run summary per test case)
     # ------------------------------------------------------------------
 
-    def _write_test_case_result(
+    def _finalize_benchmark_report(
         self,
         test_case_key: str,
         companies: tuple[str, ...] | list[str],
-        timings: list[float],
+        all_timings: list[float],
+        iteration_rows: list[dict],
         benchmark_s: float,
     ) -> Path:
         metadata = get_search_report_metadata(self.driver)
         test_case = PERFORMANCE_TEST_CASE_LABELS[test_case_key]
-        row, summary = build_test_case_summary_row(
-            test_case, companies, timings, benchmark_s, metadata
+        summary_row, summary = build_test_case_summary_row(
+            test_case, companies, all_timings, benchmark_s, metadata
         )
-        report = append_test_case_result(get_performance_report_path(), row)
+        report = append_test_case_rows(
+            get_performance_report_path(),
+            iteration_rows + [summary_row],
+        )
         self._assert_summary(summary, report)
         return report
 
     def run_search_benchmark(self, terms, iterations: int, benchmark_s: float) -> Path:
+        metadata = get_search_report_metadata(self.driver)
+        test_case = PERFORMANCE_TEST_CASE_LABELS["company_search"]
+        iteration_rows: list[dict] = []
         all_timings: list[float] = []
 
         for term in terms:
             for sample in range(1, iterations + 1):
                 timing = self.search_company(term, sample_number=sample)
                 all_timings.append(timing.elapsed_s)
+                iteration_rows.append(
+                    build_iteration_row(test_case, term, sample, timing.elapsed_s, metadata)
+                )
                 print(
                     f"[Search] {term} sample {sample}: {timing.elapsed_s:.3f}s "
                     f"({timing.result_count} results)"
                 )
 
-        return self._write_test_case_result("company_search", terms, all_timings, benchmark_s)
+        return self._finalize_benchmark_report(
+            "company_search", terms, all_timings, iteration_rows, benchmark_s
+        )
 
     def run_detail_load_benchmark(self, terms, iterations: int, benchmark_s: float) -> Path:
+        metadata = get_search_report_metadata(self.driver)
+        test_case = PERFORMANCE_TEST_CASE_LABELS["company_detail"]
+        iteration_rows: list[dict] = []
         all_timings: list[float] = []
 
         for term in terms:
@@ -375,13 +392,21 @@ class DakotaPerformance:
                 elapsed = self.wait_for_company_detail()
                 total = time.perf_counter() - started
                 all_timings.append(total)
+                iteration_rows.append(
+                    build_iteration_row(test_case, term, sample, total, metadata)
+                )
                 print(f"[Detail] {term} sample {sample}: {name} in {total:.3f}s")
                 time.sleep(VISIBILITY_PAUSE_SEC)
                 self.reset_to_search_home()
 
-        return self._write_test_case_result("company_detail", terms, all_timings, benchmark_s)
+        return self._finalize_benchmark_report(
+            "company_detail", terms, all_timings, iteration_rows, benchmark_s
+        )
 
     def run_contacts_load_benchmark(self, terms, iterations: int, benchmark_s: float) -> Path:
+        metadata = get_search_report_metadata(self.driver)
+        test_case = PERFORMANCE_TEST_CASE_LABELS["company_contacts"]
+        iteration_rows: list[dict] = []
         all_timings: list[float] = []
 
         for term in terms:
@@ -397,11 +422,16 @@ class DakotaPerformance:
                 elapsed = self.wait_for_contacts_loaded()
                 total = time.perf_counter() - started
                 all_timings.append(total)
+                iteration_rows.append(
+                    build_iteration_row(test_case, term, sample, total, metadata)
+                )
                 print(f"[Contacts] {term} sample {sample}: {name} in {total:.3f}s")
                 time.sleep(VISIBILITY_PAUSE_SEC)
                 self.reset_to_search_home()
 
-        return self._write_test_case_result("company_contacts", terms, all_timings, benchmark_s)
+        return self._finalize_benchmark_report(
+            "company_contacts", terms, all_timings, iteration_rows, benchmark_s
+        )
 
     def run_tab_load_benchmark(self, terms, iterations: int, benchmark_s: float) -> Path:
         tab_content_selectors = {
@@ -410,6 +440,9 @@ class DakotaPerformance:
             "Investors": ".dakota-investor-item",
             "Earnings Events": ".dakota-earning-event-item",
         }
+        metadata = get_search_report_metadata(self.driver)
+        test_case = PERFORMANCE_TEST_CASE_LABELS["company_type_tab"]
+        iteration_rows: list[dict] = []
         all_timings: list[float] = []
 
         for term in terms:
@@ -428,13 +461,21 @@ class DakotaPerformance:
                 elapsed = self.wait_for_tab_content(tab_content_selectors[tab])
                 total = time.perf_counter() - started
                 all_timings.append(total)
+                iteration_rows.append(
+                    build_iteration_row(test_case, term, sample, total, metadata)
+                )
                 print(f"[Tab] {term} sample {sample}: {name}->{tab} in {total:.3f}s")
                 time.sleep(VISIBILITY_PAUSE_SEC)
                 self.reset_to_search_home()
 
-        return self._write_test_case_result("company_type_tab", terms, all_timings, benchmark_s)
+        return self._finalize_benchmark_report(
+            "company_type_tab", terms, all_timings, iteration_rows, benchmark_s
+        )
 
     def run_load_more_benchmark(self, terms, iterations: int, benchmark_s: float) -> Path:
+        metadata = get_search_report_metadata(self.driver)
+        test_case = PERFORMANCE_TEST_CASE_LABELS["search_load_more"]
+        iteration_rows: list[dict] = []
         all_timings: list[float] = []
 
         for term in terms:
@@ -443,14 +484,22 @@ class DakotaPerformance:
                     self.reset_to_search_home()
                 search = self.search_company(term, sample_number=sample)
                 if not search.has_load_more or search.result_count < 10:
+                    iteration_rows.append(
+                        build_iteration_row(test_case, term, sample, TIMING_NOT_APPLICABLE, metadata)
+                    )
                     print(f"[Load more] {term} sample {sample}: skipped (no more pages)")
                     continue
                 elapsed = self.scroll_and_click_load_more()
                 all_timings.append(elapsed)
+                iteration_rows.append(
+                    build_iteration_row(test_case, term, sample, elapsed, metadata)
+                )
                 print(f"[Load more] {term} sample {sample}: {elapsed:.3f}s")
                 self.reset_to_search_home()
 
-        return self._write_test_case_result("search_load_more", terms, all_timings, benchmark_s)
+        return self._finalize_benchmark_report(
+            "search_load_more", terms, all_timings, iteration_rows, benchmark_s
+        )
 
     @staticmethod
     def _assert_summary(summary: SearchSummary, report: Path) -> None:
