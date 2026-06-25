@@ -17,7 +17,7 @@ pipeline {
         booleanParam(
             name: 'FRESH_REPORT_OUTPUT',
             defaultValue: false,
-            description: 'Clear old report artifacts before this run and generate fresh Excel + Allure output.'
+            description: 'Clear old Allure history artifacts before this run. Excel is always recreated fresh each build.'
         )
         string(
             name: 'ADDITIONAL_EMAILS',
@@ -161,20 +161,13 @@ pipeline {
                 script {
                     def effectiveCfg = getEffectiveRunConfig()
                     if (effectiveCfg.freshReportOutput) {
-                        echo 'Fresh report mode enabled: clearing previous Excel and Allure history artifacts.'
+                        echo 'Fresh report mode enabled: clearing Allure history artifacts.'
                         runShell(
-                            '''
-                                rm -f reports/dakota_chrome_extension_results.xlsx || true
-                                rm -f reports/.latest_dakota_search_report.txt || true
-                                rm -rf allure-report || true
-                            ''',
-                            '''
-                                if exist "reports\\dakota_chrome_extension_results.xlsx" del /q "reports\\dakota_chrome_extension_results.xlsx"
-                                if exist "reports\\.latest_dakota_search_report.txt" del /q "reports\\.latest_dakota_search_report.txt"
-                                if exist allure-report rmdir /s /q allure-report
-                            '''
+                            'rm -rf allure-report || true',
+                            'if exist allure-report rmdir /s /q allure-report'
                         )
                     }
+                    echo 'Clearing previous Excel and report output directories for a fresh run.'
                     runShell(
                         '''
                             rm -rf test-results allure-results reports || true
@@ -183,9 +176,10 @@ pipeline {
                         '''
                             if exist test-results rmdir /s /q test-results
                             if exist allure-results rmdir /s /q allure-results
-                            if not exist reports mkdir reports
+                            if exist reports rmdir /s /q reports
                             mkdir test-results
                             mkdir allure-results
+                            mkdir reports
                         '''
                     )
                 }

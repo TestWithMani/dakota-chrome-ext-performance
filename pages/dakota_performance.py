@@ -24,17 +24,10 @@ from pages.dakota_auth import (
 )
 from utils.performance_config import profile_tab_for_company_type
 from utils.search_report import (
-    SearchSampleMetrics,
-    append_rows_to_search_report_csv,
-    build_company_detail_run_summary_for_term,
-    build_company_detail_timing_row,
-    build_contacts_load_timing_row,
-    build_search_load_more_run_summary_for_term,
-    build_search_load_more_skipped_run_summary_for_term,
-    build_search_load_more_skipped_timing_row,
-    build_search_load_more_timing_row,
-    build_search_report_rows,
-    build_tab_load_timing_row,
+    PERFORMANCE_TEST_CASE_LABELS,
+    SearchSummary,
+    append_test_case_result,
+    build_test_case_summary_row,
     get_performance_report_path,
     get_search_report_metadata,
 )
@@ -336,35 +329,43 @@ class DakotaPerformance:
             open_dakota_sidebar(self.driver)
 
     # ------------------------------------------------------------------
-    # Benchmark runners (write Excel report + assert benchmarks)
+    # Benchmark runners (one Excel row per test case)
     # ------------------------------------------------------------------
 
-    def run_search_benchmark(self, terms, iterations: int, benchmark_s: float) -> Path:
-        metrics_by_term: dict[str, list[SearchSampleMetrics]] = {}
+    def _write_test_case_result(
+        self,
+        test_case_key: str,
+        companies: tuple[str, ...] | list[str],
+        timings: list[float],
+        benchmark_s: float,
+    ) -> Path:
         metadata = get_search_report_metadata(self.driver)
-
-        for term in terms:
-            metrics_by_term[term] = []
-            for sample in range(1, iterations + 1):
-                timing = self.search_company(term, sample_number=sample)
-                metrics_by_term[term].append(
-                    SearchSampleMetrics(timing.elapsed_s, timing.elapsed_s)
-                )
-                print(f"[Search] {term} sample {sample}: {timing.elapsed_s:.3f}s "
-                      f"({timing.result_count} results)")
-
-        rows, summaries = build_search_report_rows(metrics_by_term, benchmark_s, metadata)
-        report = append_rows_to_search_report_csv(get_performance_report_path(), rows)
-        self._assert_summaries(summaries, report)
+        test_case = PERFORMANCE_TEST_CASE_LABELS[test_case_key]
+        row, summary = build_test_case_summary_row(
+            test_case, companies, timings, benchmark_s, metadata
+        )
+        report = append_test_case_result(get_performance_report_path(), row)
+        self._assert_summary(summary, report)
         return report
 
-    def run_detail_load_benchmark(self, terms, iterations: int, benchmark_s: float) -> Path:
-        metadata = get_search_report_metadata(self.driver)
-        csv_rows: list[dict] = []
-        summaries = []
+    def run_search_benchmark(self, terms, iterations: int, benchmark_s: float) -> Path:
+        all_timings: list[float] = []
 
         for term in terms:
-            timings, names, types = [], "", ""
+            for sample in range(1, iterations + 1):
+                timing = self.search_company(term, sample_number=sample)
+                all_timings.append(timing.elapsed_s)
+                print(
+                    f"[Search] {term} sample {sample}: {timing.elapsed_s:.3f}s "
+                    f"({timing.result_count} results)"
+                )
+
+        return self._write_test_case_result("company_search", terms, all_timings, benchmark_s)
+
+    def run_detail_load_benchmark(self, terms, iterations: int, benchmark_s: float) -> Path:
+        all_timings: list[float] = []
+
+        for term in terms:
             for sample in range(1, iterations + 1):
                 if sample == 1:
                     self.reset_to_search_home()
@@ -373,33 +374,17 @@ class DakotaPerformance:
                 name, ctype = self.click_first_search_result()
                 elapsed = self.wait_for_company_detail()
                 total = time.perf_counter() - started
-                timings.append(total)
-                if sample == 1:
-                    names, types = name, ctype
-                csv_rows.append(
-                    build_company_detail_timing_row(term, sample, total, metadata)
-                )
+                all_timings.append(total)
                 print(f"[Detail] {term} sample {sample}: {name} in {total:.3f}s")
                 time.sleep(VISIBILITY_PAUSE_SEC)
                 self.reset_to_search_home()
 
-            row, summary = build_company_detail_run_summary_for_term(
-                term, timings, benchmark_s, metadata
-            )
-            csv_rows.append(row)
-            summaries.append(summary)
-
-        report = append_rows_to_search_report_csv(get_performance_report_path(), csv_rows)
-        self._assert_summaries(summaries, report)
-        return report
+        return self._write_test_case_result("company_detail", terms, all_timings, benchmark_s)
 
     def run_contacts_load_benchmark(self, terms, iterations: int, benchmark_s: float) -> Path:
-        metadata = get_search_report_metadata(self.driver)
-        csv_rows: list[dict] = []
-        summaries = []
+        all_timings: list[float] = []
 
         for term in terms:
-            timings, names, types = [], "", ""
             for sample in range(1, iterations + 1):
                 if sample == 1:
                     self.reset_to_search_home()
@@ -411,25 +396,12 @@ class DakotaPerformance:
                 self.click_tab_by_name("Contacts")
                 elapsed = self.wait_for_contacts_loaded()
                 total = time.perf_counter() - started
-                timings.append(total)
-                if sample == 1:
-                    names, types = name, ctype
-                csv_rows.append(
-                    build_contacts_load_timing_row(term, sample, total, metadata)
-                )
+                all_timings.append(total)
                 print(f"[Contacts] {term} sample {sample}: {name} in {total:.3f}s")
                 time.sleep(VISIBILITY_PAUSE_SEC)
                 self.reset_to_search_home()
 
-            row, summary = build_company_detail_run_summary_for_term(
-                term, timings, benchmark_s, metadata
-            )
-            csv_rows.append(row)
-            summaries.append(summary)
-
-        report = append_rows_to_search_report_csv(get_performance_report_path(), csv_rows)
-        self._assert_summaries(summaries, report)
-        return report
+        return self._write_test_case_result("company_contacts", terms, all_timings, benchmark_s)
 
     def run_tab_load_benchmark(self, terms, iterations: int, benchmark_s: float) -> Path:
         tab_content_selectors = {
@@ -438,12 +410,9 @@ class DakotaPerformance:
             "Investors": ".dakota-investor-item",
             "Earnings Events": ".dakota-earning-event-item",
         }
-        metadata = get_search_report_metadata(self.driver)
-        csv_rows: list[dict] = []
-        summaries = []
+        all_timings: list[float] = []
 
         for term in terms:
-            timings, names, types, tab_label = [], "", "", ""
             for sample in range(1, iterations + 1):
                 if sample == 1:
                     self.reset_to_search_home()
@@ -458,70 +427,36 @@ class DakotaPerformance:
                 self.click_tab_by_name(tab)
                 elapsed = self.wait_for_tab_content(tab_content_selectors[tab])
                 total = time.perf_counter() - started
-                timings.append(total)
-                if sample == 1:
-                    names, types, tab_label = name, ctype, tab
-                csv_rows.append(
-                    build_tab_load_timing_row(term, sample, total, metadata)
-                )
+                all_timings.append(total)
                 print(f"[Tab] {term} sample {sample}: {name}->{tab} in {total:.3f}s")
                 time.sleep(VISIBILITY_PAUSE_SEC)
                 self.reset_to_search_home()
 
-            row, summary = build_company_detail_run_summary_for_term(
-                term, timings, benchmark_s, metadata
-            )
-            csv_rows.append(row)
-            summaries.append(summary)
-
-        report = append_rows_to_search_report_csv(get_performance_report_path(), csv_rows)
-        self._assert_summaries(summaries, report)
-        return report
+        return self._write_test_case_result("company_type_tab", terms, all_timings, benchmark_s)
 
     def run_load_more_benchmark(self, terms, iterations: int, benchmark_s: float) -> Path:
-        metadata = get_search_report_metadata(self.driver)
-        csv_rows: list[dict] = []
-        summaries = []
+        all_timings: list[float] = []
 
         for term in terms:
-            timings: list[float] = []
             for sample in range(1, iterations + 1):
                 if sample == 1:
                     self.reset_to_search_home()
                 search = self.search_company(term, sample_number=sample)
                 if not search.has_load_more or search.result_count < 10:
-                    csv_rows.append(
-                        build_search_load_more_skipped_timing_row(term, sample, metadata)
-                    )
                     print(f"[Load more] {term} sample {sample}: skipped (no more pages)")
                     continue
                 elapsed = self.scroll_and_click_load_more()
-                timings.append(elapsed)
-                csv_rows.append(
-                    build_search_load_more_timing_row(term, sample, elapsed, metadata)
-                )
+                all_timings.append(elapsed)
                 print(f"[Load more] {term} sample {sample}: {elapsed:.3f}s")
                 self.reset_to_search_home()
 
-            if timings:
-                row, summary = build_search_load_more_run_summary_for_term(
-                    term, timings, benchmark_s, metadata
-                )
-            else:
-                row, summary = build_search_load_more_skipped_run_summary_for_term(
-                    term, benchmark_s, metadata
-                )
-            csv_rows.append(row)
-            summaries.append(summary)
-
-        report = append_rows_to_search_report_csv(get_performance_report_path(), csv_rows)
-        self._assert_summaries(summaries, report)
-        return report
+        return self._write_test_case_result("search_load_more", terms, all_timings, benchmark_s)
 
     @staticmethod
-    def _assert_summaries(summaries, report: Path) -> None:
-        failed = [s.tab for s in summaries if s.result == "FAIL"]
-        if failed:
+    def _assert_summary(summary: SearchSummary, report: Path) -> None:
+        if summary.result == "FAIL":
             pytest.fail(
-                f"Performance benchmark exceeded for: {', '.join(failed)}. Report: {report}"
+                f"Performance benchmark exceeded for '{summary.test_case}' "
+                f"(avg {summary.average_time_s:.3f}s > {summary.benchmark_s:.3f}s). "
+                f"Report: {report}"
             )

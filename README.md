@@ -231,7 +231,8 @@ pytest tests/test_dakota_login.py::test_dakota_login_step_by_step -v --keep-open
 | Property | Value |
 |----------|-------|
 | **Path** | `reports/dakota_chrome_extension_results.xlsx` |
-| **Columns** | Row Type, Tab, Sample #, Time (s), Min, Max, Benchmark, Result, Browser, Recorded At, Platform |
+| **Columns** | Test Case, Companies, Samples, Time (s), Min, Max, Benchmark, Result, Browser, Recorded At, Platform |
+| **Rows** | One summary row per performance test (max 5 when full suite runs) |
 | **Pass/fail** | Each sample is compared to thresholds in `utils/performance_config.py` |
 
 ### Allure (local)
@@ -333,7 +334,7 @@ Create a **Username with password** credential:
 | `DAKOTA_CREDENTIALS_ID` | Jenkins credential ID for portal login |
 | `RUN_ALLURE` | Publish Allure report in Jenkins |
 | `SEND_EMAIL` | Send HTML summary email with attachments |
-| `FRESH_REPORT_OUTPUT` | Clear prior report artifacts before run |
+| `FRESH_REPORT_OUTPUT` | Clear prior Allure history artifacts before run (Excel is always recreated) |
 | `ENABLE_INFRA_RETRY` / `INFRA_RETRY_COUNT` | Retry flaky Selenium failures |
 
 **Selection modes**
