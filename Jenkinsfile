@@ -290,7 +290,7 @@ def getEffectiveRunConfig() {
     return [
         scheduledBuild   : scheduled,
         additionalEmails : scheduled
-            ? 'omer.shafiq@rolustech.net,imad.ali@rolustech.com,schal.hasnain@rolustech.com,faseeh.ahmad@rolustech.com'
+            ? 'omer.shafiq@rolustech.net,imad.ali@rolustech.com,schal.hasnain@rolustech.com,faseeh.ahmad@rolustech.com,hina.siddiqui@rolustech.com'
             : (params.ADDITIONAL_EMAILS as String),
         defaultEmail     : scheduled
             ? 'pstanley@dakota.com'

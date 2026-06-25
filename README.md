@@ -300,7 +300,7 @@ The same job runs on a **weekly schedule** defined in `Jenkinsfile` (`triggers {
 | Scheduled run | Value |
 |---------------|-------|
 | **Default email** | `pstanley@dakota.com` |
-| **Additional emails** | `omer.shafiq@rolustech.net`, `imad.ali@rolustech.com`, `schal.hasnain@rolustech.com`, `faseeh.ahmad@rolustech.com` |
+| **Additional emails** | `omer.shafiq@rolustech.net`, `imad.ali@rolustech.com`, `schal.hasnain@rolustech.com`, `faseeh.ahmad@rolustech.com`, `hina.siddiqui@rolustech.com` |
 | **Other parameters** | Same as manual builds (`draftcrmdev@rolustech.com` default only applies to manual runs) |
 
 Manual builds keep the parameter defaults (`DEFAULT_EMAIL`, `ADDITIONAL_EMAILS`, etc.).
